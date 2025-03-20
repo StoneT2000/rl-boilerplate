@@ -13,7 +13,7 @@ from rl.models.types import NetworkConfig
 ACTIVATIONS = dict(relu=nn.ReLU, gelu=nn.GELU, tanh=nn.Tanh, sigmoid=nn.Sigmoid, log_softmax=nn.LogSoftmax)
 
 
-def activation_to_fn(activation: str) -> Callable:
+def activation_to_fn(activation: str | None) -> Callable | None:
     if activation is None:
         return None
     if activation in ACTIVATIONS:

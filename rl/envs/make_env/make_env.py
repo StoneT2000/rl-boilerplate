@@ -2,11 +2,13 @@
 All in one file to make most environments from e.g. D4RL to maniskill to whatever
 """
 
+from typing import Callable
 import gymnasium as gym
 from gymnasium import spaces
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from gymnasium.vector import VectorEnv, AsyncVectorEnv
 import numpy as np
+from omegaconf import OmegaConf
 from rl.envs.make_env import mani_skill3
 @dataclass
 class EnvMeta:
@@ -15,12 +17,51 @@ class EnvMeta:
     obs_space: spaces.Space
     act_space: spaces.Space
     env_suite: str
+
+@dataclass
+class EnvConfig:
+    env_id: str
+    """environment id, passed to gym.make"""
+    vectorization_method: str
+    """Can be "cpu" or "gpu" or "jax". CPU will try and use CPU vectorization. GPU will try and use GPU vectorization. Jax will use JAX vectorization."""
+    max_episode_steps: int | None = None
+    """max episode steps for the environment. If none will use what is defined in the environment"""
+    num_envs: int = 1
+    """number of parallel environments to create"""
+    seed: int | list[int] | None = 0
+    """seed for the environment"""
+    ignore_terminations: bool = False
+    """if true, will ignore terminations and continue the episode until truncation. If false, will stop at termination and auto reset"""
+    auto_reset: bool = True
+    """if true, will auto reset the environment when the episode is done"""
+
+    env_kwargs: dict = field(default_factory=dict)
+    """additional kwargs to pass to the environment constructor"""
+
+def make_env_from_config(env_config: EnvConfig, wrappers: list[Callable[[gym.Env], gym.Wrapper]] = [], record_video_path: str | None = None, record_episode_kwargs: dict = dict()) -> VectorEnv:
+    if not isinstance(env_config.env_kwargs, dict):
+        env_config.env_kwargs = OmegaConf.to_container(env_config.env_kwargs)
+    return make_env(
+        env_config.env_id,
+        vectorization_method=env_config.vectorization_method,
+        max_episode_steps=env_config.max_episode_steps,
+        num_envs=env_config.num_envs,
+        seed=env_config.seed,
+        ignore_terminations=env_config.ignore_terminations,
+        auto_reset=env_config.auto_reset,
+        env_kwargs=env_config.env_kwargs,
+        record_video_path=record_video_path,
+        record_episode_kwargs=record_episode_kwargs,
+        wrappers=wrappers,
+    )
 def make_env(
     env_id: str,
     vectorization_method: str = "cpu",
     max_episode_steps: int | None = None,
     num_envs: int = 1,
     seed: int | list[int] | None = 0,
+    ignore_terminations: bool = False,
+    auto_reset: bool = True,
     env_kwargs: dict = dict(),
     record_video_path: str | None = None,
     record_episode_kwargs: dict = dict(),
@@ -47,7 +88,6 @@ def make_env(
             if not pkg.supports_vectorization(vectorization_method):
                 raise ValueError(f"Vectorization method {vectorization_method} not supported for {env_suite} environments")
             env_suite = pkg.SUITE_NAME
-            # check if package has env_factory_cpu and env_factory_gpu
             if hasattr(pkg, "env_factory_cpu"):
                 env_factory_cpu = pkg.env_factory_cpu
             if hasattr(pkg, "env_factory_gpu"):
@@ -72,7 +112,17 @@ def make_env(
             ]
         )
     elif vectorization_method == "gpu":
-        env: VectorEnv = env_factory_gpu()
+        env: VectorEnv = env_factory_gpu(
+            env_id, 
+            num_envs=num_envs, 
+            seed=seed, 
+            ignore_terminations=ignore_terminations, 
+            auto_reset=auto_reset, 
+            env_kwargs=env_kwargs, 
+            record_video_path=record_video_path, 
+            wrappers=wrappers, 
+            record_episode_kwargs=record_episode_kwargs
+        )
 
 
     obs_space = env.observation_space

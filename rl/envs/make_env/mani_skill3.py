@@ -5,6 +5,7 @@ try:
     import mani_skill.envs  # NOQA
     from mani_skill.utils.wrappers import RecordEpisode as RecordEpisodeWrapper
     from mani_skill.utils.wrappers.gymnasium import CPUGymWrapper
+    from mani_skill.vector.wrappers.gymnasium import ManiSkillVectorEnv
 except ImportError:
     pass
 
@@ -32,10 +33,24 @@ def env_factory_cpu(env_id: str, idx: int, env_kwargs=dict(), record_video_path:
                 env,
                 record_video_path,
                 trajectory_name=f"trajectory_{idx}",
-                save_video=record_episode_kwargs["save_video"],
-                save_trajectory=record_episode_kwargs["save_trajectory"],
-                info_on_video=record_episode_kwargs["info_on_video"],
+                video_fps=env.unwrapped.control_freq,
+                **record_episode_kwargs
             )
         return env
 
     return _init
+
+def env_factory_gpu(env_id: str, num_envs: int, seed: int, ignore_terminations=False, auto_reset=True, env_kwargs=dict(), record_video_path: str = None, wrappers=[], record_episode_kwargs=dict()):
+    env = gym.make(env_id, num_envs=num_envs, disable_env_checker=True, **env_kwargs)
+    for wrapper in wrappers:
+        env = wrapper(env)
+    if record_video_path is not None:
+        env = RecordEpisodeWrapper(
+            env,
+            record_video_path,
+            trajectory_name="trajectory",
+            video_fps=env.unwrapped.control_freq,
+            **record_episode_kwargs
+        )
+    env = ManiSkillVectorEnv(env, auto_reset=auto_reset, ignore_terminations=ignore_terminations, record_metrics=True)
+    return env

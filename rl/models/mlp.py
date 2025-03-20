@@ -14,7 +14,7 @@ from rl.models.types import NetworkConfig
 class MLPArchConfig:
     features: list[int]
     """hidden units in each layer. The number of output features is features[-1]."""
-    activation: nn.Module | str = "tanh"
+    activation: nn.Module | str | None = "tanh"
     """internal activation"""
     output_activation: nn.Module | str | None = None
     """activation after final layer, default is None meaning no activation"""
