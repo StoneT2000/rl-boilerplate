@@ -4,7 +4,7 @@ A repo that I copy for any project that uses some RL, with some focus on robotic
 
 The point of this repo is that it **should be extendible**, with instructions on how to add new algorithms, modify config definitions etc.
 
-It is as minimal as it gets while still being updated to run somewhat fast and is torch based.
+It is fairly minimal (perhaps a mid-point between CleanRL and StableBaselines). It is also completely typed, runs somewhat fast, and is torch based.
 
 If you want to copy this repo / use it you can just copy the rl folder and place it somewhere in your own project and hack/modify whatever you need.
 
@@ -15,6 +15,10 @@ What's included in the main branch
 - Basic models (CNNs, MLPs etc.) configurable with yaml files
 - Loggers for tensorboard and wandb
 - A general purpose `make_env` function to replace `gym.make` that handles all dependency and wrapper madness for a bunch of continuous control environments
+
+General practices
+- All code is typed when possible
+- All data is batched whenever possible, even if its just some sample input to figure out shapes. Batched is the default
 
 
 ## To Use
@@ -45,7 +49,9 @@ pip install -e . torch # pick your torch version
 `configs` holds all config files stored as yml files
 `configs/<name>` holds all config files (and should hold a default of some sort) for a particular script (e.g PPO training script) or a group of experiments (e.g. BC on CartPole env)
 
-`rl` the directory for all code
+`rl/` the directory for all code
+
+`rl/agent` - folder for RL algorithm classes. `rl/agent/<algo_name>` should have most of its logic fairly self-contained. The only things that are outside are just model definitions.
 
 `rl/models` contains all models (probably torch)
 
