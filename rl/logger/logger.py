@@ -7,7 +7,8 @@ from pathlib import Path
 from typing import Callable
 
 import numpy as np
-from omegaconf import OmegaConf
+import yaml
+# from omegaconf import OmegaConf
 
 
 color2num = dict(
@@ -45,16 +46,26 @@ from dataclasses import dataclass
 
 @dataclass
 class LoggerConfig:
-    workspace: str
-    exp_name: Union[str, None] = None
+    workspace: str = "runs"
+    """the workspace for the logger"""
+    exp_name: str = "default_experiment"
+    """the name of the experiment. Logs and all data are saved to <workspace>/<exp_name>/..."""
     clear_out: bool = False
-    project_name: Union[str, None] = None
+    """if true, clears out all previous data in <workspace>/<exp_name>/. Otherwise will use the same folders"""
+    project_name: str | None = None
+    """the project name for wandb"""
     tensorboard: bool = False
+    """whether to log locally to tensorboard"""
     wandb: bool = False
-    wandb_cfg: Union[Dict, None] = None
-    cfg: Dict = None
-    best_stats_cfg: Dict = None
-    save_fn: Union[Callable, None] = None
+    """whether to use Weights and Biases and log to there"""
+    wandb_cfg: dict | None = None
+    """the wandb config"""
+    cfg: dict | None = None
+    """the config for the experiment"""
+    best_stats_cfg: dict | None = None
+    """the best stats config"""
+    save_fn: Callable | None = None
+    """the save function"""
 
 
 class Logger:
@@ -71,8 +82,8 @@ class Logger:
         tensorboard: bool = True,
         wandb: bool = False,
         wandb_cfg: dict | None = None,
-        cfg: dict | OmegaConf | None = {},
-        best_stats_cfg: dict | None = {},
+        cfg: dict | None = None,
+        best_stats_cfg: dict | None = None,
         save_fn: Callable | None = None,
     ) -> None:
         """
@@ -198,12 +209,12 @@ class Logger:
         if self.wandb:
             wb.finish()
 
-    def save_config(self, config: dict | OmegaConf, verbose: int = 2):
+    def save_config(self, config: dict, verbose: int = 2):
         """
         save configuration of experiments to the experiment directory
         """
-        if type(config) == type(OmegaConf.create()):
-            config = OmegaConf.to_container(config)
+        # if type(config) == type(OmegaConf.create()):
+        #     config = OmegaConf.to_container(config)
         if self.wandb:
             wb.config.update(config, allow_val_change=True)
         config_path = osp.join(self.exp_path, "config.yml")
@@ -211,7 +222,7 @@ class Logger:
             self.print("Saving config:\n", color="cyan", bold=True)
             self.print(config)
         with open(config_path, "w") as out:
-            out.write(OmegaConf.to_yaml(config))
+            out.write(yaml.dump(config))
 
     def print(self, msg, file=sys.stdout, color="", bold=False):
         """

@@ -5,4 +5,4 @@ from typing import Any
 @dataclass
 class NetworkConfig:
     type: str
-    arch_cfg: Any
+    arch_cfg: Any | None = None

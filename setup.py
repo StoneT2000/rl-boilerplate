@@ -7,7 +7,6 @@ setup(
     install_requires=[
         "dacite",
         "tyro",
-        "omegaconf",
         "gymnasium==0.29.1",
         "wandb",
         "tensorboard"

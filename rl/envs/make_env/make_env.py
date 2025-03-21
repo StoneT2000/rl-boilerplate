@@ -8,7 +8,6 @@ from gymnasium import spaces
 from dataclasses import dataclass, field
 from gymnasium.vector import VectorEnv, AsyncVectorEnv
 import numpy as np
-from omegaconf import OmegaConf
 from rl.envs.make_env import mani_skill3
 @dataclass
 class EnvMeta:
@@ -39,8 +38,8 @@ class EnvConfig:
     """additional kwargs to pass to the environment constructor"""
 
 def make_env_from_config(env_config: EnvConfig, wrappers: list[Callable[[gym.Env], gym.Wrapper]] = [], record_video_path: str | None = None, record_episode_kwargs: dict = dict()) -> VectorEnv:
-    if not isinstance(env_config.env_kwargs, dict):
-        env_config.env_kwargs = OmegaConf.to_container(env_config.env_kwargs)
+    # if not isinstance(env_config.env_kwargs, dict):
+    #     env_config.env_kwargs = OmegaConf.to_container(env_config.env_kwargs)
     return make_env(
         env_config.env_id,
         vectorization_method=env_config.vectorization_method,
