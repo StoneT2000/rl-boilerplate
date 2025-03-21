@@ -33,7 +33,7 @@ class EnvConfig:
     """max episode steps for the environment. If none will use what is defined in the environment"""
     num_envs: int = 1
     """number of parallel environments to create"""
-    seed: int | list[int] | None = 0
+    seed: int | list[int] | None = None
     """seed for the environment"""
     ignore_terminations: bool = False
     """if true, will ignore terminations and continue the episode until truncation. If false, will stop at termination and auto reset"""

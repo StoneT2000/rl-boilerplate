@@ -78,6 +78,7 @@ default_config = {
                 vectorization_method="gpu",
                 ignore_terminations=False, # partial resets
                 env_kwargs=dict(
+                    obs_mode="state",
                     sim_backend="physx_cuda",
                     reconfiguration_freq=0,
                     # not sure how to permit other changes to this in CLI, waiting on https://github.com/brentyi/tyro/issues/277
@@ -89,6 +90,7 @@ default_config = {
                 vectorization_method="gpu",
                 ignore_terminations=True,
                 env_kwargs=dict(
+                    obs_mode="state",
                     sim_backend="physx_cuda",
                     reconfiguration_freq=1,
                     render_mode="rgb_array",
@@ -103,7 +105,7 @@ default_config = {
                 actor=NetworkConfig(
                     type="mlp",
                     arch_cfg=dict(
-                        features=[256, 256],
+                        features=[256, 256, 256],
                         activation="tanh",
                         output_activation="tanh",
                     ),
@@ -111,7 +113,7 @@ default_config = {
                 critic=NetworkConfig(
                     type="mlp",
                     arch_cfg=dict(
-                        features=[256, 256],
+                        features=[256, 256, 256],
                         activation="tanh",
                         output_activation="tanh",
                     ),

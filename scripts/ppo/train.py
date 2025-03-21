@@ -2,7 +2,9 @@ import os
 os.environ["TORCHDYNAMO_INLINE_INBUILT_NN_MODULES"] = "1"
 
 from collections import defaultdict
+import gymnasium as gym
 import copy
+import random
 import time
 import tqdm
 import tyro
@@ -58,9 +60,45 @@ class Agent(nn.Module):
         if action is None:
             action = action_mean + action_std * torch.randn_like(action_mean)
         return action, probs.log_prob(action).sum(1), probs.entropy().sum(1), self.critic_head(self.critic_feature_net(obs))
+# class Agent(nn.Module):
+#     def __init__(self, sample_obs: torch.Tensor, sample_act: torch.Tensor, device=None):
+#         super().__init__()
+#         n_obs = sample_obs.shape[1]
+#         n_act = sample_act.shape[1]
+#         self.critic = nn.Sequential(
+#             layer_init(nn.Linear(n_obs, 256, device=device)),
+#             nn.Tanh(),
+#             layer_init(nn.Linear(256, 256, device=device)),
+#             nn.Tanh(),
+#             layer_init(nn.Linear(256, 256, device=device)),
+#             nn.Tanh(),
+#             layer_init(nn.Linear(256, 1, device=device)),
+#         )
+#         self.actor_mean = nn.Sequential(
+#             layer_init(nn.Linear(n_obs, 256, device=device)),
+#             nn.Tanh(),
+#             layer_init(nn.Linear(256, 256, device=device)),
+#             nn.Tanh(),
+#             layer_init(nn.Linear(256, 256, device=device)),
+#             nn.Tanh(),
+#             layer_init(nn.Linear(256, n_act, device=device), std=0.01*np.sqrt(2)),
+#         )
+#         self.actor_logstd = nn.Parameter(torch.zeros(1, n_act, device=device))
 
+#     def get_value(self, x):
+#         return self.critic(x)
+
+#     def get_action_and_value(self, obs, action=None):
+#         action_mean = self.actor_mean(obs)
+#         action_logstd = self.actor_logstd.expand_as(action_mean)
+#         action_std = torch.exp(action_logstd)
+#         probs = Normal(action_mean, action_std)
+#         if action is None:
+#             action = action_mean + action_std * torch.randn_like(action_mean)
+#         return action, probs.log_prob(action).sum(1), probs.entropy().sum(1), self.critic(obs)
 def main(config: PPOTrainConfig):
     # background setup and seeding
+    random.seed(config.seed)
     np.random.seed(config.seed)
     torch.manual_seed(config.seed)
     torch.backends.cudnn.deterministic = config.torch_deterministic
@@ -75,6 +113,8 @@ def main(config: PPOTrainConfig):
     config.minibatch_size = batch_size // config.ppo.num_minibatches
     config.batch_size = config.ppo.num_minibatches * config.minibatch_size
     config.num_iterations = config.total_timesteps // config.batch_size
+    config.env.seed = config.seed
+    config.eval_env.seed = config.seed
     
     model_path = os.path.join(logger.workspace, logger.exp_name, "models")
     video_path = None if config.eval_env.record_video_path is None else os.path.join(logger.workspace, logger.exp_name, config.eval_env.record_video_path)
@@ -261,15 +301,16 @@ def main(config: PPOTrainConfig):
     start_time = time.time()
     container_local = None
     next_obs = envs.reset()[0]
-    next_done = torch.zeros(env_meta.num_envs, device=device, dtype=torch.bool)
+    next_done = torch.zeros(config.env.num_envs, device=device, dtype=torch.bool)
     pbar = tqdm.tqdm(range(1, config.num_iterations + 1))
-
     cumulative_times = defaultdict(float)
 
+    print("=== Starting PPO Training ===")
     for iteration in pbar:
+        agent.eval()
         if iteration % config.eval_freq == 1:
             stime = time.perf_counter()
-            agent.eval()
+            
             eval_obs, _ = eval_envs.reset()
             eval_metrics = defaultdict(list)
             num_episodes = 0
@@ -295,7 +336,7 @@ def main(config: PPOTrainConfig):
                 eval_time = time.perf_counter() - stime
                 cumulative_times["eval_time"] += eval_time
                 logger.add_scalar("time/eval_time", eval_time, global_step)
-            agent.train()
+            # agent.train()
 
         if config.save_model and iteration % config.eval_freq == 1:
             torch.save(dict(agent=agent.state_dict(), optimizer=optimizer.state_dict()),  os.path.join(model_path, f"ckpt_{iteration}.pt"))

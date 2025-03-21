@@ -42,7 +42,7 @@ def env_factory_cpu(env_id: str, idx: int, env_kwargs=dict(), record_video_path:
     return _init
 
 def env_factory_gpu(env_id: str, num_envs: int, seed: int, ignore_terminations=False, auto_reset=True, env_kwargs=dict(), record_video_path: str = None, wrappers=[], record_episode_kwargs=dict()):
-    env = gym.make(env_id, num_envs=num_envs, disable_env_checker=True, **env_kwargs)
+    env = gym.make(env_id, num_envs=num_envs, **env_kwargs)
     for wrapper in wrappers:
         env = wrapper(env)
     if record_video_path is not None:
@@ -53,7 +53,7 @@ def env_factory_gpu(env_id: str, num_envs: int, seed: int, ignore_terminations=F
             video_fps=env.unwrapped.control_freq,
             **record_episode_kwargs
         )
-    env = ManiSkillVectorEnv(env, auto_reset=auto_reset, ignore_terminations=ignore_terminations, record_metrics=True)
+    env = ManiSkillVectorEnv(env, num_envs=num_envs, auto_reset=auto_reset, ignore_terminations=ignore_terminations, record_metrics=True)
     return env
 
 def get_env_reward_mode(env):
