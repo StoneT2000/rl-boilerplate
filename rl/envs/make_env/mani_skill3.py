@@ -1,6 +1,7 @@
 import gymnasium as gym
 SUITE_NAME = "ManiSkill3"
 
+
 try:
     import mani_skill.envs  # NOQA
     from mani_skill.utils.wrappers import RecordEpisode as RecordEpisodeWrapper

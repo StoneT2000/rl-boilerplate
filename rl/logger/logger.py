@@ -1,4 +1,6 @@
+import json
 import os.path as osp
+import pickle
 import shutil
 import sys
 import warnings
@@ -7,6 +9,7 @@ from pathlib import Path
 from typing import Callable
 
 import numpy as np
+import torch
 import yaml
 # from omegaconf import OmegaConf
 
@@ -22,7 +25,6 @@ color2num = dict(
     white=37,
     crimson=38,
 )
-import wandb as wb
 
 
 def colorize(string, color, bold=False, highlight=False):
@@ -41,7 +43,7 @@ def colorize(string, color, bold=False, highlight=False):
     return "\x1b[%sm%s\x1b[0m" % (";".join(attr), string)
 
 
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict, field, is_dataclass
 
 
 @dataclass
@@ -52,23 +54,107 @@ class LoggerConfig:
     """the name of the experiment. Logs and all data are saved to <workspace>/<exp_name>/..."""
     clear_out: bool = False
     """if true, clears out all previous data in <workspace>/<exp_name>/. Otherwise will use the same folders"""
-    project_name: str | None = None
-    """the project name for wandb"""
+
+    ### tensorboard related configs ###
     tensorboard: bool = False
     """whether to log locally to tensorboard"""
+
+    ### wandb related configs ###
     wandb: bool = False
     """whether to use Weights and Biases and log to there"""
+    wandb_entity: str | None = None
+    """the entity (team) of wandb's project"""
+    wandb_group: str | None = None
+    """the group of the run for wandb"""
     wandb_cfg: dict | None = None
     """the wandb config"""
-    cfg: dict | None = None
-    """the config for the experiment"""
-    best_stats_cfg: dict | None = None
-    """the best stats config"""
-    save_fn: Callable | None = None
-    """the save function"""
+    wandb_tags: list[str] = field(default_factory=list)
+    """the tags of the run for wandb"""
+    # cfg: dict | None = None
+    # """the config for the experiment"""
+    # best_stats_cfg: dict | None = None
+    # """the best stats config"""
+    # save_fn: Callable | None = None
+    # """the save function"""
 
 
 class Logger:
+    """
+    Logging tool
+    """
+    def __init__(self, config: LoggerConfig):
+        self.config = config
+        self.workspace = config.workspace
+        self.exp_name = config.exp_name
+        # self.wandb = wandb
+        if self.config.wandb_cfg is None:
+            self.config.wandb_cfg = {}
+        # if self.config.cfg is None:
+        #     self.config.cfg = {}
+        # if best_stats_cfg is None:
+        #     best_stats_cfg = {}
+        # self.tensorboard = tensorboard
+        from torch.utils.tensorboard import SummaryWriter
+        self.writer = SummaryWriter(f"{self.config.workspace}/{self.config.exp_name}")
+        # self.wandb_run = None
+
+        # self.start_step = 0
+        # self.last_log_step = 0
+
+        # create/clear folders
+        self.exp_path = osp.join(self.config.workspace, self.config.exp_name)
+        self.model_path = osp.join(self.exp_path, "models")
+        self.video_path = osp.join(self.exp_path, "videos")
+        self.log_path = osp.join(self.exp_path, "logs")
+        if self.config.clear_out:
+            if osp.exists(self.exp_path):
+                shutil.rmtree(self.exp_path, ignore_errors=True)
+
+        Path(self.log_path).mkdir(parents=True, exist_ok=True)
+        Path(self.model_path).mkdir(parents=True, exist_ok=True)
+        Path(self.video_path).mkdir(parents=True, exist_ok=True)
+
+    def init(self, exp_config: dict, raw_tyro_config):
+        """Start logging by initializing wandb/tensorboard with a given experiment config for reproducibility
+        
+        Args:
+            exp_config: dict
+                The experiment config to log to wandb and json file, which can contain additional runtime generated data by (e.g. rl training code) for readability
+            raw_tyro_config: Dataclass
+                The raw dataclass config that was parsed by tyro
+        """
+        if is_dataclass(exp_config):
+            exp_config = asdict(exp_config)
+        assert is_dataclass(raw_tyro_config), "raw_tyro_config must be a dataclass"
+        raw_tyro_config = asdict(raw_tyro_config)
+        with open(osp.join(self.exp_path, "config.json"), "w") as f:
+            json.dump(exp_config, f)
+        with open(osp.join(self.exp_path, "config.pkl"), "wb") as f:
+            # dump python object directly for loading with tyro
+            pickle.dump(raw_tyro_config, f)
+        if self.config.wandb:
+            import wandb
+            wandb.init(
+                project=self.config.wandb_group,
+                entity=self.config.wandb_entity,
+                sync_tensorboard=False,
+                config=exp_config,
+                name=self.config.exp_name,
+                save_code=True,
+                group=self.config.wandb_group,
+                tags=[f"GPU:{torch.cuda.get_device_name()}"] + self.config.wandb_tags
+            )
+    def add_scalar(self, tag, scalar_value, step):
+        if self.config.wandb:
+            import wandb
+            wandb.log({tag: scalar_value}, step=step)
+        self.writer.add_scalar(tag, scalar_value, step)
+    
+    def close(self):
+        self.writer.close()
+
+
+class OldLogger:
     """
     Logging tool
     """
@@ -139,16 +225,15 @@ class Logger:
         self.last_log_step = 0
 
         self.exp_path = osp.join(workspace, exp_name)
-        self.model_path = osp.join(self.exp_path, "models")
-        self.video_path = osp.join(self.exp_path, "videos")
+        # self.model_path = osp.join(self.exp_path, "models")
+        # self.video_path = osp.join(self.exp_path, "videos")
         self.log_path = osp.join(self.exp_path, "logs")
         if clear_out:
             if osp.exists(self.exp_path):
                 shutil.rmtree(self.exp_path, ignore_errors=True)
 
         Path(self.log_path).mkdir(parents=True, exist_ok=True)
-        Path(self.model_path).mkdir(parents=True, exist_ok=True)
-        Path(self.video_path).mkdir(parents=True, exist_ok=True)
+        # Path(self.model_path).mkdir(parents=True, exist_ok=True)
         # set up external loggers
 
         self.wandb_run = None

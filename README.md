@@ -45,10 +45,6 @@ pip install -e . torch # pick your torch version
 
 ## Organization
 
-
-`configs` holds all config files stored as yml files
-`configs/<name>` holds all config files (and should hold a default of some sort) for a particular script (e.g PPO training script) or a group of experiments (e.g. BC on CartPole env)
-
 `rl/` the directory for all code
 
 `rl/agent` - folder for RL algorithm classes. `rl/agent/<algo_name>` should have most of its logic fairly self-contained. The only things that are outside are just model definitions.
@@ -60,3 +56,7 @@ pip install -e . torch # pick your torch version
 `rl/cfg` configuration tooling. Usually doesn't need to be modified unless you want to change the config system.
 
 `scripts/` contains various scripts that use modules in the package to do things, e.g. sample random environment data, train with PPO etc.
+
+`scripts/<algo>` all files related for running an algorithm
+
+`scripts/<algo>/config.py` all relevant configs as python files

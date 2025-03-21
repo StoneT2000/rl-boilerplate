@@ -2,11 +2,11 @@
 All in one file to make most environments from e.g. D4RL to maniskill to whatever
 """
 
-from typing import Callable
+from typing import Callable, Generic, TypeVar
 import gymnasium as gym
 from gymnasium import spaces
 from dataclasses import dataclass, field
-from gymnasium.vector import VectorEnv, AsyncVectorEnv
+from gymnasium.vector import VectorEnv
 import numpy as np
 from rl.envs.make_env import mani_skill3
 @dataclass
@@ -37,7 +37,12 @@ class EnvConfig:
     env_kwargs: dict = field(default_factory=dict)
     """additional kwargs to pass to the environment constructor"""
 
-def make_env_from_config(env_config: EnvConfig, wrappers: list[Callable[[gym.Env], gym.Wrapper]] = [], record_video_path: str | None = None, record_episode_kwargs: dict = dict()) -> VectorEnv:
+    record_video_path: str | None = None
+    """the path to record videos to. If None, no videos will be recorded."""
+    record_episode_kwargs: dict = field(default_factory=dict)
+    """the kwargs to record the episode with"""
+
+def make_env_from_config(env_config: EnvConfig, wrappers: list[Callable[[gym.Env], gym.Wrapper]] = []) -> tuple[VectorEnv, EnvMeta]:
     # if not isinstance(env_config.env_kwargs, dict):
     #     env_config.env_kwargs = OmegaConf.to_container(env_config.env_kwargs)
     return make_env(
@@ -49,8 +54,8 @@ def make_env_from_config(env_config: EnvConfig, wrappers: list[Callable[[gym.Env
         ignore_terminations=env_config.ignore_terminations,
         auto_reset=env_config.auto_reset,
         env_kwargs=env_config.env_kwargs,
-        record_video_path=record_video_path,
-        record_episode_kwargs=record_episode_kwargs,
+        record_video_path=env_config.record_video_path,
+        record_episode_kwargs=env_config.record_episode_kwargs,
         wrappers=wrappers,
     )
 def make_env(
@@ -65,7 +70,7 @@ def make_env(
     record_video_path: str | None = None,
     record_episode_kwargs: dict = dict(),
     wrappers=[],
-) -> VectorEnv:
+) -> tuple[VectorEnv, EnvMeta]:
     """
     Make a gymnasium vector env of the given environment id.
 
@@ -138,3 +143,15 @@ def make_env(
         sample_acts=sample_acts,
         env_suite=env_suite
     )
+
+# @dataclass
+# class MS3EnvKwargs:
+#     sim_backend: str | None = None
+#     render_backend: str | None = None
+#     reconfiguration_freq: int | None = None
+#     control_mode: str | None = None
+#     human_render_camera_configs: dict | None = None
+
+# @dataclass
+# class MS3EnvConfig(EnvConfig[MS3EnvKwargs]):
+#     pass
