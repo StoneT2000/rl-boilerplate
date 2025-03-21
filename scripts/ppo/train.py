@@ -40,6 +40,7 @@ class Agent(nn.Module):
         self.critic_head = layer_init(nn.Linear(critic_sample_obs.shape[1], 1, device=device))            
         self.actor_head = layer_init(nn.Linear(actor_sample_obs.shape[1], sample_act.shape[1], device=device), std=0.01*np.sqrt(2))
         self.actor_logstd = nn.Parameter(torch.zeros(1, sample_act.shape[1], device=device))
+    
     def get_value(self, x):
         if self.shared_feature_net is None:
             critic_features = x
@@ -186,12 +187,13 @@ def main(config: PPOTrainConfig):
 
             # TRY NOT TO MODIFY: execute the game and log data.
             next_obs, reward, next_done, infos = step_func(action)
-
+            
             if "final_info" in infos:
                 final_info = infos["final_info"]
                 done_mask = infos["_final_info"]
                 for k, v in final_info["episode"].items():
                     logger.add_scalar(f"train/{k}", v[done_mask].float().mean(), global_step)
+                infos["final_observation"] = tensordict.TensorDict(infos["final_observation"], batch_size=(config.env.num_envs, ))
                 with torch.no_grad():
                     final_values[step, torch.arange(config.env.num_envs, device=device)[done_mask]] = agent.get_value(infos["final_observation"][done_mask]).view(-1)
 

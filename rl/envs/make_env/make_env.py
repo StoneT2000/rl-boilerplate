@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from gymnasium.vector import VectorEnv
 import numpy as np
 import torch
+import tensordict
 from rl.envs import gym_utils
 from rl.envs.make_env import mani_skill3
 @dataclass
@@ -143,8 +144,7 @@ def make_env(
     act_space = env.action_space
     # note some envs do not randomize assets, just poses if do this kind of reset
     obs, reset_info = env.reset(seed=seed)
-    import tensordict
-    sample_obs = tensordict.from_dict(obs)[0:1]
+    sample_obs = tensordict.TensorDict(obs, batch_size=(num_envs, ))[0:1]
     sample_acts = act_space.sample()[0:1]
 
     max_episode_steps = gym_utils.find_max_episode_steps_value(env)
