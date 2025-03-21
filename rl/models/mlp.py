@@ -41,17 +41,23 @@ class MLP(nn.Module):
         activation - internal activation
         output_activation - activation after final layer, default is None
     """
-    def __init__(self, sample_input: torch.Tensor, features: list[int], activation: nn.Module, output_activation: nn.Module | None = None, use_layer_norm: bool = False):
+    def __init__(self, sample_input: torch.Tensor, features: list[int], activation: nn.Module, output_activation: nn.Module | None = None, use_layer_norm: bool = False, device: torch.device | None = None):
+        super().__init__()
         layers = []
         assert sample_input.ndim == 2, "sample_input must be a tensor with shape (batch_size, input_dim)"
         features = [sample_input.shape[1]] + features
         for i in range(len(features)-1):
-            layers.append(layer_init(nn.Linear(features[i], features[i+1])))
+            layers.append(layer_init(nn.Linear(features[i], features[i+1], device=device)))
             if use_layer_norm:
-                layers.append(nn.LayerNorm(features[i+1]))
-            if activation is not None:
+                layers.append(nn.LayerNorm(features[i+1], device=device))
+            if activation is not None and i < len(features) - 2:
                 layers.append(activation())
         if output_activation is not None:
             if use_layer_norm:
-                layers.append(nn.LayerNorm(features[-1]))
+                layers.append(nn.LayerNorm(features[-1], device=device))
             layers.append(output_activation())
+
+        self.mlp = nn.Sequential(*layers)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.mlp(x)

@@ -11,9 +11,9 @@ class PPOConfig:
     gae_lambda: float = 0.9
     """the lambda for the general advantage estimation"""
     num_minibatches: int = 32
-    """the number of mini-batches"""
+    """the number of mini-batches per update epoch"""
     update_epochs: int = 4
-    """the K epochs to update the policy"""
+    """the number of epochs to update the policy after a rollout"""
     norm_adv: bool = True
     """Toggles advantages normalization"""
     clip_coef: float = 0.2

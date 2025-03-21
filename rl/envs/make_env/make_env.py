@@ -2,20 +2,26 @@
 All in one file to make most environments from e.g. D4RL to maniskill to whatever
 """
 
-from typing import Callable, Generic, TypeVar
+from typing import Callable
 import gymnasium as gym
 from gymnasium import spaces
 from dataclasses import dataclass, field
 from gymnasium.vector import VectorEnv
 import numpy as np
+import torch
+from rl.envs import gym_utils
 from rl.envs.make_env import mani_skill3
 @dataclass
 class EnvMeta:
-    sample_obs: np.ndarray
-    sample_acts: np.ndarray
+    num_envs: int
+    sample_obs: torch.Tensor
+    sample_acts: torch.Tensor
     obs_space: spaces.Space
     act_space: spaces.Space
     env_suite: str
+    max_episode_steps: int | None = None
+    reward_mode: str | None = None
+    """a bit of an arbitrary tag. Just general concept of whether it is dense, sparse, or something else for tracking purposes"""
 
 @dataclass
 class EnvConfig:
@@ -43,8 +49,6 @@ class EnvConfig:
     """the kwargs to record the episode with"""
 
 def make_env_from_config(env_config: EnvConfig, wrappers: list[Callable[[gym.Env], gym.Wrapper]] = []) -> tuple[VectorEnv, EnvMeta]:
-    # if not isinstance(env_config.env_kwargs, dict):
-    #     env_config.env_kwargs = OmegaConf.to_container(env_config.env_kwargs)
     return make_env(
         env_config.env_id,
         vectorization_method=env_config.vectorization_method,
@@ -87,6 +91,7 @@ def make_env(
         wrappers: the wrappers to apply to the environment
     """
     env_suite = ""
+    get_env_reward_mode_fn = None
     for pkg in [mani_skill3]:
         if pkg.has_env(env_id):
             if not pkg.supports_vectorization(vectorization_method):
@@ -96,6 +101,8 @@ def make_env(
                 env_factory_cpu = pkg.env_factory_cpu
             if hasattr(pkg, "env_factory_gpu"):
                 env_factory_gpu = pkg.env_factory_gpu
+            if hasattr(pkg, "get_env_reward_mode"):
+                get_env_reward_mode_fn = pkg.get_env_reward_mode
             break
     if env_suite == "":
         raise ValueError(f"Environment {env_id} not found")
@@ -136,22 +143,15 @@ def make_env(
     sample_obs = obs
     sample_acts = act_space.sample()
 
+    max_episode_steps = gym_utils.find_max_episode_steps_value(env)
+
     return env, EnvMeta(
+        num_envs=num_envs,
         obs_space=obs_space,
         act_space=act_space,
         sample_obs=sample_obs,
         sample_acts=sample_acts,
-        env_suite=env_suite
+        env_suite=env_suite,
+        max_episode_steps=max_episode_steps,
+        reward_mode=get_env_reward_mode_fn(env) if get_env_reward_mode_fn is not None else None,
     )
-
-# @dataclass
-# class MS3EnvKwargs:
-#     sim_backend: str | None = None
-#     render_backend: str | None = None
-#     reconfiguration_freq: int | None = None
-#     control_mode: str | None = None
-#     human_render_camera_configs: dict | None = None
-
-# @dataclass
-# class MS3EnvConfig(EnvConfig[MS3EnvKwargs]):
-#     pass

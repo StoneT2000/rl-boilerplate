@@ -55,3 +55,6 @@ def env_factory_gpu(env_id: str, num_envs: int, seed: int, ignore_terminations=F
         )
     env = ManiSkillVectorEnv(env, auto_reset=auto_reset, ignore_terminations=ignore_terminations, record_metrics=True)
     return env
+
+def get_env_reward_mode(env):
+    return env.unwrapped.reward_mode

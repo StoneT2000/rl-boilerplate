@@ -128,7 +128,7 @@ class Logger:
         assert is_dataclass(raw_tyro_config), "raw_tyro_config must be a dataclass"
         raw_tyro_config = asdict(raw_tyro_config)
         with open(osp.join(self.exp_path, "config.json"), "w") as f:
-            json.dump(exp_config, f)
+            json.dump(exp_config, f, indent=4)
         with open(osp.join(self.exp_path, "config.pkl"), "wb") as f:
             # dump python object directly for loading with tyro
             pickle.dump(raw_tyro_config, f)

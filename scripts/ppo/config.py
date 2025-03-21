@@ -5,25 +5,6 @@ from rl.models.types import NetworkConfig
 from dataclasses import dataclass, field
 
 @dataclass
-class TrainConfig:
-    total_timesteps: int
-    """total timesteps to train for"""
-    eval_freq: int = 25
-    """evaluation frequency in terms of training iterations"""
-    num_steps: int = 50
-    """the number of steps to run in each environment per policy rollout"""
-    num_eval_steps: int = 50
-    """the number of steps to run in each evaluation environment during evaluation"""
-
-
-    save_trajectory: bool = False
-    """whether to save trajectory data into the `videos` folder"""
-    save_model: bool = True
-    """whether to save model into the `runs/{run_name}` folder"""
-    checkpoint: str | None = None
-    """path to a pretrained checkpoint file to start training from"""
-
-@dataclass
 class PPONetworkConfig:
     actor: NetworkConfig = field(default_factory=NetworkConfig)
     critic: NetworkConfig = field(default_factory=NetworkConfig)
@@ -36,14 +17,28 @@ class PPOTrainConfig:
     """environment configurations"""
     eval_env: EnvConfig
     """evaluation environment configurations. You should only modify at most num_eval_envs, ignore_terminations, record_video_path, record_episode_kwargs. The rest are copied from env.env_kwargs"""
-    train: TrainConfig
-    """training configurations"""
     network: PPONetworkConfig = field(default_factory=PPONetworkConfig)
     """actor critic neural net configurations"""
     logger: LoggerConfig = field(default_factory=LoggerConfig)
     """logger configurations"""
     ppo: PPOConfig = field(default_factory=PPOConfig)
     """ppo hyperparameters"""
+
+    total_timesteps: int = 100_000_000
+    """total timesteps to train for"""
+    eval_freq: int = 25
+    """evaluation frequency in terms of training iterations"""
+    num_steps: int = 50
+    """the number of steps to run in each environment per policy rollout"""
+    num_eval_steps: int = 50
+    """the number of steps to run in each evaluation environment during evaluation"""
+    save_model: bool = True
+    """whether to save model into the `runs/{run_name}` folder"""
+    checkpoint: str | None = None
+    """path to a pretrained checkpoint file to start training from"""
+
+
+
     cudagraphs: bool = False
     """whether to use cudagraphs"""
     compile: bool = False
@@ -53,6 +48,14 @@ class PPOTrainConfig:
     cuda: bool = True
     """if toggled, cuda will be enabled by default"""
 
+    # to be filled in runtime
+    batch_size: int = 0
+    """the batch size (computed in runtime)"""
+    minibatch_size: int = 0
+    """the mini-batch size (computed in runtime)"""
+    num_iterations: int = 0
+    """the number of iterations (computed in runtime)"""
+
     def __post_init__(self):
         self.eval_env.env_id = self.env.env_id
 
@@ -61,6 +64,8 @@ class PPOTrainConfig:
         for k, v in self.env.env_kwargs.items():
             if k not in self.eval_env.env_kwargs:
                 self.eval_env.env_kwargs[k] = v
+        
+        self.eval_env.record_episode_kwargs["max_steps_per_video"] = self.num_eval_steps
 
 default_config = {
     "ms3-state": (
@@ -91,9 +96,6 @@ default_config = {
                 ),
                 record_video_path="videos",
             ),
-            train=TrainConfig(
-                total_timesteps=10_000_000,
-            ),
             network=PPONetworkConfig(
                 actor=NetworkConfig(
                     type="mlp",
@@ -112,7 +114,7 @@ default_config = {
                     ),
                 )
             ),
-            
+            total_timesteps=10_000_000,
         )
     )
 }
