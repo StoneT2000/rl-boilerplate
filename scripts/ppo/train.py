@@ -267,9 +267,9 @@ def main(config: PPOTrainConfig):
     cumulative_times = defaultdict(float)
 
     for iteration in pbar:
-        agent.eval()
         if iteration % config.eval_freq == 1:
             stime = time.perf_counter()
+            agent.eval()
             eval_obs, _ = eval_envs.reset()
             eval_metrics = defaultdict(list)
             num_episodes = 0
@@ -295,10 +295,10 @@ def main(config: PPOTrainConfig):
                 eval_time = time.perf_counter() - stime
                 cumulative_times["eval_time"] += eval_time
                 logger.add_scalar("time/eval_time", eval_time, global_step)
+            agent.train()
 
         if config.save_model and iteration % config.eval_freq == 1:
-            model_path = os.path.join(model_path, f"ckpt_{iteration}.pt")
-            torch.save(dict(agent=agent.state_dict(), optimizer=optimizer.state_dict()), model_path)
+            torch.save(dict(agent=agent.state_dict(), optimizer=optimizer.state_dict()),  os.path.join(model_path, f"ckpt_{iteration}.pt"))
             print(f"model saved to {model_path}")
         # Annealing the rate if instructed to do so.
         if config.ppo.anneal_lr:
@@ -351,16 +351,11 @@ def main(config: PPOTrainConfig):
             logger.add_scalar(f"time/total_{k}", v, global_step)
         logger.add_scalar("time/total_rollout+update_time", cumulative_times["rollout_time"] + cumulative_times["update_time"], global_step)
     if config.save_model:
-        model_path = os.path.join(model_path, "final_ckpt.pt")
-        torch.save(dict(agent=agent.state_dict(), optimizer=optimizer.state_dict()), model_path)
+        torch.save(dict(agent=agent.state_dict(), optimizer=optimizer.state_dict()), os.path.join(model_path, "final_ckpt.pt"))
         print(f"model saved to {model_path}")
     logger.close()
     envs.close()
     eval_envs.close()
-    
-
-    import ipdb; ipdb.set_trace()
-
     
 if __name__ == "__main__":
     config = tyro.extras.overridable_config_cli(default_config)

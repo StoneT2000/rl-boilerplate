@@ -12,7 +12,7 @@ class PPOConfig:
     """the lambda for the general advantage estimation"""
     num_minibatches: int = 32
     """the number of mini-batches per update epoch"""
-    update_epochs: int = 4
+    update_epochs: int = 8
     """the number of epochs to update the policy after a rollout"""
     norm_adv: bool = True
     """Toggles advantages normalization"""

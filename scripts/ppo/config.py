@@ -74,7 +74,7 @@ default_config = {
             seed=0,
             env=EnvConfig(
                 env_id="PickCube-v1",
-                num_envs=16,
+                num_envs=4096,
                 vectorization_method="gpu",
                 ignore_terminations=False, # partial resets
                 env_kwargs=dict(
@@ -95,6 +95,9 @@ default_config = {
                     human_render_camera_configs=dict(shader_pack="default")
                 ),
                 record_video_path="videos",
+                record_episode_kwargs=dict(
+                    save_trajectory=False,
+                )
             ),
             network=PPONetworkConfig(
                 actor=NetworkConfig(
@@ -114,6 +117,7 @@ default_config = {
                     ),
                 )
             ),
+            num_steps=4,
             total_timesteps=10_000_000,
         )
     )
