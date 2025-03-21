@@ -193,7 +193,8 @@ def main(config: PPOTrainConfig):
                 done_mask = infos["_final_info"]
                 for k, v in final_info["episode"].items():
                     logger.add_scalar(f"train/{k}", v[done_mask].float().mean(), global_step)
-                infos["final_observation"] = tensordict.TensorDict(infos["final_observation"], batch_size=(config.env.num_envs, ))
+                if isinstance(infos["final_observation"], dict):
+                    infos["final_observation"] = tensordict.TensorDict(infos["final_observation"], batch_size=(config.env.num_envs, ))
                 with torch.no_grad():
                     final_values[step, torch.arange(config.env.num_envs, device=device)[done_mask]] = agent.get_value(infos["final_observation"][done_mask]).view(-1)
 
