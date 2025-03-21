@@ -145,7 +145,7 @@ def make_env(
     # note some envs do not randomize assets, just poses if do this kind of reset
     obs, reset_info = env.reset(seed=seed)
     if isinstance(obs, dict):
-        sample_obs = tensordict.TensorDict(obs, batch_size=(num_envs, ))
+        obs = tensordict.TensorDict(obs, batch_size=(num_envs, ))
     sample_obs = obs[0:1]
     sample_acts = act_space.sample()[0:1]
 
