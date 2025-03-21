@@ -1,3 +1,4 @@
+import copy
 import json
 import os.path as osp
 import pickle
@@ -125,8 +126,21 @@ class Logger:
         """
         if is_dataclass(exp_config):
             exp_config = asdict(exp_config)
+        exp_config = copy.deepcopy(exp_config)
         assert is_dataclass(raw_tyro_config), "raw_tyro_config must be a dataclass"
         raw_tyro_config = asdict(raw_tyro_config)
+        
+        def clean_config(config: dict):
+            for k, v in config.items():
+                if isinstance(v, dict):
+                    clean_config(v)
+                else:
+                    # check if dumpable
+                    try:
+                        json.dumps(v)
+                    except:
+                        config[k] = str(v)
+        clean_config(exp_config)
         with open(osp.join(self.exp_path, "config.json"), "w") as f:
             json.dump(exp_config, f, indent=4)
         with open(osp.join(self.exp_path, "config.pkl"), "wb") as f:

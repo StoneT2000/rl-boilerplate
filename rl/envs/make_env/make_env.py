@@ -48,7 +48,10 @@ class EnvConfig:
     record_episode_kwargs: dict = field(default_factory=dict)
     """the kwargs to record the episode with"""
 
-def make_env_from_config(env_config: EnvConfig, wrappers: list[Callable[[gym.Env], gym.Wrapper]] = []) -> tuple[VectorEnv, EnvMeta]:
+    wrappers: list[Callable[[gym.Env], gym.Wrapper]] = field(default_factory=list)
+    """wrappers to apply to the environment"""
+
+def make_env_from_config(env_config: EnvConfig) -> tuple[VectorEnv, EnvMeta]:
     return make_env(
         env_config.env_id,
         vectorization_method=env_config.vectorization_method,
@@ -60,7 +63,7 @@ def make_env_from_config(env_config: EnvConfig, wrappers: list[Callable[[gym.Env
         env_kwargs=env_config.env_kwargs,
         record_video_path=env_config.record_video_path,
         record_episode_kwargs=env_config.record_episode_kwargs,
-        wrappers=wrappers,
+        wrappers=env_config.wrappers,
     )
 def make_env(
     env_id: str,

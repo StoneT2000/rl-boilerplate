@@ -20,7 +20,7 @@ class NatureCNNConfig(NetworkConfig):
 
 
 class NatureCNN(nn.Module):
-    def __init__(self, sample_obs, config: NatureCNNConfig, device: torch.device | None = None):
+    def __init__(self, config: NatureCNNConfig, sample_obs: torch.Tensor, device: torch.device | None = None):
         super().__init__()
 
         extractors = {}
@@ -56,8 +56,8 @@ class NatureCNN(nn.Module):
 
         # to easily figure out the dimensions after flattening, we pass a test tensor
         with torch.no_grad():
-            n_flatten = cnn(sample_obs["rgb"].float().permute(0,3,1,2).cpu()).shape[1]
-            layers = [nn.Linear(n_flatten, feature_size)]
+            n_flatten = cnn(sample_obs["rgb"].float().permute(0,3,1,2)).shape[1]
+            layers = [nn.Linear(n_flatten, feature_size, device=device)]
             if config.arch_cfg.activation is not None:
                 layers.append(config.arch_cfg.activation())
             extractors["rgb"] = nn.Sequential(cnn, nn.Sequential(*layers))

@@ -20,7 +20,7 @@ from tensordict.nn import CudaGraphModule
 from torch.distributions.normal import Normal
 
 
-from config import PPOTrainConfig, default_config, PPONetworkConfig
+from config import PPOTrainConfig, ms3_configs, PPONetworkConfig
 from rl.envs.make_env.make_env import make_env_from_config
 from rl.logger.logger import Logger
 from rl.models.builder import build_network_from_cfg
@@ -31,11 +31,11 @@ class Agent(nn.Module):
     def __init__(self, config: PPONetworkConfig, sample_obs: torch.Tensor, sample_act: torch.Tensor, device=None):
         super().__init__()
         if config.shared_backbone is not None:
-            self.shared_feature_net, sample_obs = build_network_from_cfg(sample_obs, config.shared_backbone, device=device)
+            self.shared_feature_net, sample_obs = build_network_from_cfg(config.shared_backbone, sample_obs, device=device)
         else:
             self.shared_feature_net = None
-        self.critic_feature_net, critic_sample_obs = build_network_from_cfg(sample_obs, config.critic, device=device)
-        self.actor_feature_net, actor_sample_obs = build_network_from_cfg(sample_obs, config.actor, device=device)
+        self.critic_feature_net, critic_sample_obs = build_network_from_cfg(config.critic, sample_obs, device=device)
+        self.actor_feature_net, actor_sample_obs = build_network_from_cfg(config.actor, sample_obs, device=device)
         
         self.critic_head = layer_init(nn.Linear(critic_sample_obs.shape[1], 1, device=device))            
         self.actor_head = layer_init(nn.Linear(actor_sample_obs.shape[1], sample_act.shape[1], device=device), std=0.01*np.sqrt(2))
@@ -380,6 +380,6 @@ def main(config: PPOTrainConfig):
     eval_envs.close()
     
 if __name__ == "__main__":
-    config = tyro.extras.overridable_config_cli(default_config)
+    config = tyro.extras.overridable_config_cli(ms3_configs)
     main(config)
 

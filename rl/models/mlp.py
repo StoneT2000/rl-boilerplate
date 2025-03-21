@@ -41,21 +41,21 @@ class MLP(nn.Module):
         activation - internal activation
         output_activation - activation after final layer, default is None
     """
-    def __init__(self, sample_input: torch.Tensor, features: list[int], activation: nn.Module, output_activation: nn.Module | None = None, use_layer_norm: bool = False, device: torch.device | None = None):
+    def __init__(self, config: MLPConfig, sample_input: torch.Tensor, device: torch.device | None = None):
         super().__init__()
         layers = []
         assert sample_input.ndim == 2, "sample_input must be a tensor with shape (batch_size, input_dim)"
-        features = [sample_input.shape[1]] + features
+        features = [sample_input.shape[1]] + config.arch_cfg.features
         for i in range(len(features)-1):
             layers.append(layer_init(nn.Linear(features[i], features[i+1], device=device)))
-            if use_layer_norm:
+            if config.arch_cfg.use_layer_norm:
                 layers.append(nn.LayerNorm(features[i+1], device=device))
-            if activation is not None and i < len(features) - 2:
-                layers.append(activation())
-        if output_activation is not None:
-            if use_layer_norm:
+            if config.arch_cfg.activation is not None and i < len(features) - 2:
+                layers.append(config.arch_cfg.activation())
+        if config.arch_cfg.output_activation is not None:
+            if config.arch_cfg.use_layer_norm:
                 layers.append(nn.LayerNorm(features[-1], device=device))
-            layers.append(output_activation())
+            layers.append(config.arch_cfg.output_activation())
 
         self.mlp = nn.Sequential(*layers)
 
