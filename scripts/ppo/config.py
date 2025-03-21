@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 
 @dataclass
 class PPONetworkConfig:
+    shared_backbone: NetworkConfig | None = None
     actor: NetworkConfig = field(default_factory=NetworkConfig)
     critic: NetworkConfig = field(default_factory=NetworkConfig)
 
@@ -121,6 +122,69 @@ default_config = {
             ),
             num_steps=4,
             total_timesteps=10_000_000,
+        )
+    ),
+    "ms3-rgb": (
+        "ManiSkill3 RGB based PPO training",
+        PPOTrainConfig(
+            seed=0,
+            env=EnvConfig(
+                env_id="PickCube-v1",
+                num_envs=1024,
+                vectorization_method="gpu",
+                ignore_terminations=False, # partial resets
+                env_kwargs=dict(
+                    obs_mode="rgb",
+                    sim_backend="physx_cuda",
+                    reconfiguration_freq=0,
+                    # not sure how to permit other changes to this in CLI, waiting on https://github.com/brentyi/tyro/issues/277
+                )
+            ),
+            eval_env=EnvConfig(
+                env_id="PickCube-v1",
+                num_envs=16,
+                vectorization_method="gpu",
+                ignore_terminations=True,
+                env_kwargs=dict(
+                    obs_mode="rgb",
+                    sim_backend="physx_cuda",
+                    reconfiguration_freq=1,
+                    render_mode="all",
+                    human_render_camera_configs=dict(shader_pack="default")
+                ),
+                record_video_path="videos",
+                record_episode_kwargs=dict(
+                    save_trajectory=False,
+                )
+            ),
+            network=PPONetworkConfig(
+                shared_backbone=NetworkConfig(
+                    type="nature_cnn",
+                    arch_cfg=dict(
+                        state_features=[256],
+                        activation="relu",
+                        output_activation="relu",
+                    ),
+                ),
+                actor=NetworkConfig(
+                    type="mlp",
+                    arch_cfg=dict(
+                        features=[512],
+                        activation="relu",
+                        output_activation="relu",
+                    ),
+                ),
+                critic=NetworkConfig(
+                    type="mlp",
+                    arch_cfg=dict(
+                        features=[512],
+                        activation="relu",
+                        output_activation="relu",
+                    ),
+                )
+            ),
+            num_steps=16,
+            total_timesteps=20_000_000,
         )
     )
 }

@@ -140,8 +140,9 @@ def make_env(
     act_space = env.action_space
     # note some envs do not randomize assets, just poses if do this kind of reset
     obs, reset_info = env.reset(seed=seed)
-    sample_obs = obs
-    sample_acts = act_space.sample()
+    import tensordict
+    sample_obs = tensordict.from_dict(obs)[0:1]
+    sample_acts = act_space.sample()[0:1]
 
     max_episode_steps = gym_utils.find_max_episode_steps_value(env)
 

@@ -20,7 +20,7 @@ from tensordict.nn import CudaGraphModule
 from torch.distributions.normal import Normal
 
 
-from config import PPOTrainConfig, default_config
+from config import PPOTrainConfig, default_config, PPONetworkConfig
 from rl.envs.make_env.make_env import make_env_from_config
 from rl.logger.logger import Logger
 from rl.models.builder import build_network_from_cfg
@@ -28,74 +28,57 @@ from rl.models.mlp import layer_init
 
 
 class Agent(nn.Module):
-    def __init__(self, sample_obs: torch.Tensor, sample_act: torch.Tensor, device=None):
+    def __init__(self, config: PPONetworkConfig, sample_obs: torch.Tensor, sample_act: torch.Tensor, device=None):
         super().__init__()
-        self.critic_feature_net = build_network_from_cfg(sample_obs, config.network.critic, device=device)
-        self.critic_head = layer_init(nn.Linear(256, 1, device=device))
-        self.actor_feature_net = build_network_from_cfg(sample_obs, config.network.actor, device=device)
-        nn.Sequential
-        # self.actor_mean = nn.Sequential(
-        #     layer_init(nn.Linear(n_obs, 256, device=device)),
-        #     nn.Tanh(),
-        #     layer_init(nn.Linear(256, 256, device=device)),
-        #     nn.Tanh(),
-        #     layer_init(nn.Linear(256, 256, device=device)),
-        #     nn.Tanh(),
-        #     layer_init(nn.Linear(256, n_act, device=device), std=0.01*np.sqrt(2)),
-        # )
-        self.actor_head = layer_init(nn.Linear(256, sample_act.shape[1], device=device), std=0.01*np.sqrt(2))
+        if config.shared_backbone is not None:
+            self.shared_feature_net, sample_obs = build_network_from_cfg(sample_obs, config.shared_backbone, device=device)
+        else:
+            self.shared_feature_net = None
+        self.critic_feature_net, critic_sample_obs = build_network_from_cfg(sample_obs, config.critic, device=device)
+        self.actor_feature_net, actor_sample_obs = build_network_from_cfg(sample_obs, config.actor, device=device)
+        
+        self.critic_head = layer_init(nn.Linear(critic_sample_obs.shape[1], 1, device=device))            
+        self.actor_head = layer_init(nn.Linear(actor_sample_obs.shape[1], sample_act.shape[1], device=device), std=0.01*np.sqrt(2))
         self.actor_logstd = nn.Parameter(torch.zeros(1, sample_act.shape[1], device=device))
-
+        import ipdb; ipdb.set_trace()
     def get_value(self, x):
-        return self.critic_head(self.critic_feature_net(x))
+        if self.shared_feature_net is None:
+            critic_features = x
+        else:
+            critic_features = self.shared_feature_net(x)
+        if self.critic_feature_net is not None:
+            critic_features = self.critic_feature_net(critic_features)
+        return self.critic_head(critic_features)
     
     def get_eval_action(self, obs: torch.Tensor):
-        return self.actor_head(self.actor_feature_net(obs))
+        if self.shared_feature_net is None:
+            actor_features = obs
+        else:
+            actor_features = self.shared_feature_net(obs)
+        if self.actor_feature_net is not None:
+            actor_features = self.actor_feature_net(actor_features)
+        return self.actor_head(actor_features)
 
     def get_action_and_value(self, obs: torch.Tensor, action: torch.Tensor | None = None):
-        action_mean = self.actor_head(self.actor_feature_net(obs))
+        if self.shared_feature_net is None:
+            actor_features = obs
+            critic_features = obs
+        else:
+            actor_features = self.shared_feature_net(obs)
+            critic_features = actor_features
+        if self.actor_feature_net is not None:
+            actor_features = self.actor_feature_net(actor_features)
+        if self.critic_feature_net is not None:
+            critic_features = self.critic_feature_net(critic_features)
+
+        action_mean = self.actor_head(actor_features)
         action_logstd = self.actor_logstd.expand_as(action_mean)
         action_std = torch.exp(action_logstd)
         probs = Normal(action_mean, action_std)
         if action is None:
             action = action_mean + action_std * torch.randn_like(action_mean)
-        return action, probs.log_prob(action).sum(1), probs.entropy().sum(1), self.critic_head(self.critic_feature_net(obs))
-# class Agent(nn.Module):
-#     def __init__(self, sample_obs: torch.Tensor, sample_act: torch.Tensor, device=None):
-#         super().__init__()
-#         n_obs = sample_obs.shape[1]
-#         n_act = sample_act.shape[1]
-#         self.critic = nn.Sequential(
-#             layer_init(nn.Linear(n_obs, 256, device=device)),
-#             nn.Tanh(),
-#             layer_init(nn.Linear(256, 256, device=device)),
-#             nn.Tanh(),
-#             layer_init(nn.Linear(256, 256, device=device)),
-#             nn.Tanh(),
-#             layer_init(nn.Linear(256, 1, device=device)),
-#         )
-#         self.actor_mean = nn.Sequential(
-#             layer_init(nn.Linear(n_obs, 256, device=device)),
-#             nn.Tanh(),
-#             layer_init(nn.Linear(256, 256, device=device)),
-#             nn.Tanh(),
-#             layer_init(nn.Linear(256, 256, device=device)),
-#             nn.Tanh(),
-#             layer_init(nn.Linear(256, n_act, device=device), std=0.01*np.sqrt(2)),
-#         )
-#         self.actor_logstd = nn.Parameter(torch.zeros(1, n_act, device=device))
+        return action, probs.log_prob(action).sum(1), probs.entropy().sum(1), self.critic_head(critic_features)
 
-#     def get_value(self, x):
-#         return self.critic(x)
-
-#     def get_action_and_value(self, obs, action=None):
-#         action_mean = self.actor_mean(obs)
-#         action_logstd = self.actor_logstd.expand_as(action_mean)
-#         action_std = torch.exp(action_logstd)
-#         probs = Normal(action_mean, action_std)
-#         if action is None:
-#             action = action_mean + action_std * torch.randn_like(action_mean)
-#         return action, probs.log_prob(action).sum(1), probs.entropy().sum(1), self.critic(obs)
 def main(config: PPOTrainConfig):
     # background setup and seeding
     random.seed(config.seed)
@@ -137,15 +120,13 @@ def main(config: PPOTrainConfig):
     if config.checkpoint:
         checkpoint = torch.load(config.checkpoint, map_location=device)
 
-
-
     ### Create Agent ###
-    agent = Agent(env_meta.sample_obs, env_meta.sample_acts, device=device)
+    agent = Agent(config.network, env_meta.sample_obs, env_meta.sample_acts, device=device)
     if checkpoint is not None:
         agent.load_state_dict(checkpoint["agent"])
 
     # Make a version of agent with detached params
-    agent_inference = Agent(env_meta.sample_obs, env_meta.sample_acts, device=device)
+    agent_inference = Agent(config.network, env_meta.sample_obs, env_meta.sample_acts, device=device)
     agent_inference_p = from_module(agent).data # type: ignore
     agent_inference_p.to_module(agent_inference) # type: ignore
 
