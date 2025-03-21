@@ -298,7 +298,7 @@ def main(config: PPOTrainConfig):
 
         if config.save_model and iteration % config.eval_freq == 1:
             model_path = os.path.join(model_path, f"ckpt_{iteration}.pt")
-            torch.save(agent.state_dict(), model_path)
+            torch.save(dict(agent=agent.state_dict(), optimizer=optimizer.state_dict()), model_path)
             print(f"model saved to {model_path}")
         # Annealing the rate if instructed to do so.
         if config.ppo.anneal_lr:
@@ -352,7 +352,7 @@ def main(config: PPOTrainConfig):
         logger.add_scalar("time/total_rollout+update_time", cumulative_times["rollout_time"] + cumulative_times["update_time"], global_step)
     if config.save_model:
         model_path = os.path.join(model_path, "final_ckpt.pt")
-        torch.save(agent.state_dict(), model_path)
+        torch.save(dict(agent=agent.state_dict(), optimizer=optimizer.state_dict()), model_path)
         print(f"model saved to {model_path}")
     logger.close()
     envs.close()
