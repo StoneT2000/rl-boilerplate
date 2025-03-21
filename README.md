@@ -9,17 +9,21 @@ It is fairly minimal (perhaps a mid-point between CleanRL and StableBaselines). 
 If you want to copy this repo / use it you can just copy the rl folder and place it somewhere in your own project and hack/modify whatever you need.
 
 What's included in the main branch
-- [Dacite](https://github.com/konradhalas/dacite) + dataclass based yaml configuration system
+- [Dacite](https://github.com/konradhalas/dacite) + python dataclass based configuration system
 - [Tyro](https://github.com/brentyi/tyro) based CLI control
 - PPO and SAC algorithms (with torch.compile/cudagraphs support)
-- Basic models (CNNs, MLPs etc.) configurable with yaml files
+- Basic models (CNNs, MLPs etc.) configurable with python dataclasses
 - Loggers for tensorboard and wandb
-- A general purpose `make_env` function to replace `gym.make` that handles all dependency and wrapper madness for a bunch of continuous control environments
+- A general purpose `make_env` function to replace `gym.make` that handles all dependency and wrapper madness for a bunch of continuous control environments.
 
 General practices
 - All code is typed when possible
 - All data is batched whenever possible, even if its just some sample input to figure out shapes. Batched is the default
+- Dictionary of torch tensors are moved to tensordict usually
 
+While some repos like to make things as modular as possible, this repo does not do that. The only objects that are intended to be imported from the library in `rl` are environment configurations and a function to create environments from configs, neural network models and a function to build models from configs, and replay buffer designs. Things that are generally standardizable or often are never changed in RL experiments (e.g. neural net architectures). 
+
+Algorithm specific code is in the `scripts/<algo>` folder and is organized on a per-algorithm basis. Typically they each have at least a `scripts/<algo>/config.py` file with some default configs and configs for the algorithm itself.
 
 ## To Use
 
@@ -43,20 +47,30 @@ mamba activate rl
 pip install -e . torch # pick your torch version
 ```
 
+Example train script
+
+```bash
+python scripts/ppo/train.py --help
+python scripts/ppo/train.py ms3-state --env.env-id PickCube-v1 --seed 1 --logger.exp-name "ppo-PickCube-v1-state-1"
+```
+
+The example ppo training code will do a number of recommended things for rl experiments:
+- Define a TrainConfig dataclass that contains all other dataclass configs (e.g. PPO hyperparemters, env configs, network configs, logger configs etc.)
+- save a pickle file of the python config (which can include non json serializable objects)
+- save a JSON readable version of the config
+- save evaluation videos of the agent
+- log things to wandb
+
 ## Organization
 
-`rl/` the directory for all code
+`rl/` the directory for all commonly re-used code. Code that is standardizable (e.g. replay buffers) because there is an obvious goal (e.g. max memory efficiency / read/write speeds for replay buffers) and many algos use it, or code that is often re-used and is rarely ever heavily experimented with outside some common choices (e.g. neural net models), are candidates for being placed here.
 
-`rl/agent` - folder for RL algorithm classes. `rl/agent/<algo_name>` should have most of its logic fairly self-contained. The only things that are outside are just model definitions.
+`rl/logger` - code for logging utilities
 
-`rl/models` contains all models (probably torch)
+`rl/models` - contains all neural network models
 
-`rl/envs` - folder for any custom environments
+`rl/envs` - folder for any custom environments and utilities to create environments from standardized environment configs
 
-`rl/cfg` configuration tooling. Usually doesn't need to be modified unless you want to change the config system.
+`scripts/<algo>` - all files related for running an algorithm
 
-`scripts/` contains various scripts that use modules in the package to do things, e.g. sample random environment data, train with PPO etc.
-
-`scripts/<algo>` all files related for running an algorithm
-
-`scripts/<algo>/config.py` all relevant configs as python files
+`scripts/<algo>/config.py` - all relevant configs as python files

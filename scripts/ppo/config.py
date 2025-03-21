@@ -1,4 +1,3 @@
-from rl.agents.ppo.config import PPOConfig
 from rl.envs.make_env.make_env import EnvConfig
 from rl.logger.logger import LoggerConfig
 from rl.models.types import NetworkConfig
@@ -9,7 +8,41 @@ class PPONetworkConfig:
     shared_backbone: NetworkConfig | None = None
     actor: NetworkConfig = field(default_factory=NetworkConfig)
     critic: NetworkConfig = field(default_factory=NetworkConfig)
+    init_logstd: float = 0
 
+from dataclasses import dataclass
+
+@dataclass
+class PPOHyperparametersConfig:
+    learning_rate: float = 3e-4
+    """the learning rate of the optimizer"""
+    anneal_lr: bool = False
+    """Toggle learning rate annealing for policy and value networks"""
+    gamma: float = 0.8
+    """the discount factor gamma"""
+    gae_lambda: float = 0.9
+    """the lambda for the general advantage estimation"""
+    num_minibatches: int = 32
+    """the number of mini-batches per update epoch"""
+    update_epochs: int = 8
+    """the number of epochs to update the policy after a rollout"""
+    norm_adv: bool = True
+    """Toggles advantages normalization"""
+    clip_coef: float = 0.2
+    """the surrogate clipping coefficient"""
+    clip_vloss: bool = False
+    """Toggles whether or not to use a clipped loss for the value function, as per the paper."""
+    ent_coef: float = 0.0
+    """coefficient of the entropy"""
+    vf_coef: float = 0.5
+    """coefficient of the value function"""
+    max_grad_norm: float = 0.5
+    """the maximum norm for the gradient clipping"""
+    target_kl: float = 0.1
+    """the target KL divergence threshold"""
+    reward_scale: float = 1.0
+    """Scale the reward by this factor"""
+    finite_horizon_gae: bool = False
 @dataclass
 class PPOTrainConfig:
     seed: int
@@ -22,7 +55,7 @@ class PPOTrainConfig:
     """actor critic neural net configurations"""
     logger: LoggerConfig = field(default_factory=LoggerConfig)
     """logger configurations"""
-    ppo: PPOConfig = field(default_factory=PPOConfig)
+    ppo: PPOHyperparametersConfig = field(default_factory=PPOHyperparametersConfig)
     """ppo hyperparameters"""
 
     total_timesteps: int = 100_000_000
@@ -163,6 +196,7 @@ try:
                     wrappers=[FlattenRGBDObservationWrapper]
                 ),
                 network=PPONetworkConfig(
+                    init_logstd=-0.5,
                     shared_backbone=NetworkConfig(
                         type="nature_cnn",
                         arch_cfg=dict(
