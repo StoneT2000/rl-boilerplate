@@ -9,5 +9,7 @@ setup(
         "tyro",
         "omegaconf",
         "gymnasium==0.29.1",
+        "wandb",
+        "tensorboard"
     ],
 )
