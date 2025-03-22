@@ -2,24 +2,19 @@
 
 A repo that I copy for any project that uses some RL, with some focus on robotics/continuous control.
 
-The point of this repo is that it **should be extendible**, with instructions on how to add new algorithms, modify config definitions etc.
+It is fairly minimal (perhaps a mid-point between CleanRL and StableBaselines). It is also nearly completely typed, runs quite fast, and is torch based.
 
-It is fairly minimal (perhaps a mid-point between CleanRL and StableBaselines). It is also completely typed, runs somewhat fast, and is torch based.
-
-If you want to copy this repo / use it you can just copy the rl folder and place it somewhere in your own project and hack/modify whatever you need.
-
-What's included in the main branch
-- [Dacite](https://github.com/konradhalas/dacite) + python dataclass based configuration system
-- [Tyro](https://github.com/brentyi/tyro) based CLI control
+What's included:
+- [Tyro](https://github.com/brentyi/tyro) based CLI control with dataclass based python configuration (no yamls!)
 - PPO and SAC algorithms (with torch.compile/cudagraphs support)
 - Basic models (CNNs, MLPs etc.) configurable with python dataclasses
 - Loggers for tensorboard and wandb
-- A general purpose `make_env` function to replace `gym.make` that handles all dependency and wrapper madness for a bunch of continuous control environments.
+- A general purpose `make_env_from_config` function to replace `gym.make` that handles all dependency and wrapper madness for a bunch of continuous control environments.
 
-General practices
+General practices:
 - All code is typed when possible
 - All data is batched whenever possible, even if its just some sample input to figure out shapes. Batched is the default
-- Dictionary of torch tensors are moved to tensordict usually
+- Dictionary of torch tensors are moved to tensordict when possible
 
 While some repos like to make things as modular as possible, this repo does not do that. The only objects that are intended to be imported from the library in `rl` are environment configurations and a function to create environments from configs, neural network models and a function to build models from configs, and replay buffer designs. Things that are generally standardizable or often are never changed in RL experiments (e.g. neural net architectures). 
 

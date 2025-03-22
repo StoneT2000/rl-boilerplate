@@ -40,7 +40,6 @@ class Agent(nn.Module):
         self.critic_head = layer_init(nn.Linear(critic_sample_obs.shape[1], 1, device=device))            
         self.actor_head = layer_init(nn.Linear(actor_sample_obs.shape[1], sample_act.shape[1], device=device), std=0.01*np.sqrt(2))
         self.actor_logstd = nn.Parameter(torch.ones(1, sample_act.shape[1], device=device) * config.init_logstd)
-
     
     def get_value(self, x):
         if self.shared_feature_net is None:
