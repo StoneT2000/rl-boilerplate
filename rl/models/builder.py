@@ -25,7 +25,7 @@ def activation_to_fn(activation: str | None) -> Callable | None:
 
 
 def build_network_from_cfg(config: NetworkConfig, sample_input: torch.Tensor, device: torch.device | None = None) -> tuple[nn.Module, torch.Tensor]: # type: ignore
-    """build any nn.Module from a sample input and a config. We check cfg.type to see what nn module to build. String type used to enable exporting to human readable config formats
+    """build any nn.Module from a sample input and a config. We check `config.type` to see what nn module to build. String type used to enable exporting to human readable config formats
     
     Returns the nn.Module as well as the sample output of the network
     """

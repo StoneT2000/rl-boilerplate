@@ -89,20 +89,9 @@ class Logger:
         self.config = config
         self.workspace = config.workspace
         self.exp_name = config.exp_name
-        # self.wandb = wandb
+
         if self.config.wandb_cfg is None:
             self.config.wandb_cfg = {}
-        # if self.config.cfg is None:
-        #     self.config.cfg = {}
-        # if best_stats_cfg is None:
-        #     best_stats_cfg = {}
-        # self.tensorboard = tensorboard
-        from torch.utils.tensorboard import SummaryWriter
-        self.writer = SummaryWriter(f"{self.config.workspace}/{self.config.exp_name}")
-        # self.wandb_run = None
-
-        # self.start_step = 0
-        # self.last_log_step = 0
 
         # create/clear folders
         self.exp_path = osp.join(self.config.workspace, self.config.exp_name)
@@ -116,6 +105,9 @@ class Logger:
         Path(self.log_path).mkdir(parents=True, exist_ok=True)
         Path(self.model_path).mkdir(parents=True, exist_ok=True)
         Path(self.video_path).mkdir(parents=True, exist_ok=True)
+
+        from torch.utils.tensorboard import SummaryWriter
+        self.writer = SummaryWriter(self.log_path)
 
     def init(self, exp_config: dict, raw_tyro_config):
         """Start logging by initializing wandb/tensorboard with a given experiment config for reproducibility

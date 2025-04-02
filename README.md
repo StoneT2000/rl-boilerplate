@@ -49,9 +49,11 @@ python scripts/ppo/train.py --help
 python scripts/ppo/train.py ms3-state --env.env-id PickCube-v1 --seed 1 --logger.exp-name "ppo-PickCube-v1-state-1"
 ```
 
-The example ppo training code will do a number of recommended things for rl experiments:
+The way it works with tyro CLI configuration is you can first specify a default config (train.py and config.py defines ms3-state and ms3-rgb for now), and then override all the other things as needed.
+
+If you want to make your own changes/algorithm etc. recommend you read how ppo/train.py and ppo/config.py is written for a fairly clean example of fully typed configs and easy experimentation:
 - Define a TrainConfig dataclass that contains all other dataclass configs (e.g. PPO hyperparemters, env configs, network configs, logger configs etc.)
-- save a pickle file of the python config (which can include non json serializable objects)
+- save a pickle file of the python config (which can include non json serializable objects such as gym wrapper classes)
 - save a JSON readable version of the config
 - save evaluation videos of the agent
 - log things to wandb
