@@ -65,6 +65,8 @@ class LoggerConfig:
     """whether to use Weights and Biases and log to there"""
     wandb_entity: str | None = None
     """the entity (team) of wandb's project"""
+    wandb_project: str | None = None
+    """the wandb project to log to"""
     wandb_group: str | None = None
     """the group of the run for wandb"""
     wandb_cfg: dict | None = None
@@ -149,7 +151,7 @@ class Logger:
         if self.config.wandb:
             import wandb
             wandb.init(
-                project=self.config.wandb_group,
+                project=self.config.wandb_project,
                 entity=self.config.wandb_entity,
                 sync_tensorboard=False,
                 config=exp_config,

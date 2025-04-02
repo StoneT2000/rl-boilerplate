@@ -2,7 +2,7 @@
 All in one file to make most environments from e.g. D4RL to maniskill to whatever
 """
 
-from typing import Callable
+from typing import Annotated, Callable
 import gymnasium as gym
 from gymnasium import spaces
 from dataclasses import dataclass, field
@@ -10,8 +10,22 @@ from gymnasium.vector import VectorEnv
 import numpy as np
 import torch
 import tensordict
+import tyro
 from rl.envs import gym_utils
 from rl.envs.make_env import mani_skill3
+
+KwargsDict = Annotated[
+    dict[str, str],
+    tyro.constructors.PrimitiveConstructorSpec(
+        nargs="*",
+        metavar="KEY=VAL [KEY=VAL ...]",
+        instance_from_str=lambda strings: {
+            kv.partition("=")[0]: kv.partition("=")[2] for kv in strings
+        },
+        is_instance=lambda d: isinstance(d, dict),
+        str_from_instance=lambda d: [f"{k}={v}" for k, v in d.items()],
+    ),
+]
 @dataclass
 class EnvMeta:
     num_envs: int
@@ -41,7 +55,7 @@ class EnvConfig:
     auto_reset: bool = True
     """if true, will auto reset the environment when the episode is done"""
 
-    env_kwargs: dict = field(default_factory=dict)
+    env_kwargs: KwargsDict = field(default_factory=dict)
     """additional kwargs to pass to the environment constructor"""
 
     record_video_path: str | None = None

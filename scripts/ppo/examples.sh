@@ -13,5 +13,5 @@ do
     --cudagraphs \
     --logger.exp-name="ppo-PickCube-v1-rgb-${seed}" \
     --logger.wandb_entity stonet2000 --logger.wandb \
-    --logger.wandb_group "PPO"
+    --logger.wandb_project "PPO" --logger.wandb_group "PPO-baseline"
 done

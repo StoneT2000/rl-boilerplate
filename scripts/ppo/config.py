@@ -6,10 +6,14 @@ from dataclasses import dataclass, field
 @dataclass
 class PPONetworkConfig:
     shared_backbone: NetworkConfig | None = None
+    """the shared backbone network. Data is first processed through this network before being passed to the actor and critic networks."""
     actor: NetworkConfig = field(default_factory=NetworkConfig)
+    """the actor network"""
     critic: NetworkConfig = field(default_factory=NetworkConfig)
+    """the critic network"""
     init_logstd: float = 0
-
+    """the initial log standard deviation for the actor network"""
+    
 from dataclasses import dataclass
 
 @dataclass
@@ -224,6 +228,9 @@ try:
                 ),
                 num_steps=16,
                 total_timesteps=20_000_000,
+                ppo=PPOHyperparametersConfig(
+                    target_kl=0.2,
+                )
             )
         )
     }

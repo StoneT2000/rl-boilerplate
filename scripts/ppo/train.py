@@ -2,7 +2,6 @@ import os
 os.environ["TORCHDYNAMO_INLINE_INBUILT_NN_MODULES"] = "1"
 
 from collections import defaultdict
-import gymnasium as gym
 import copy
 import random
 import time
@@ -290,8 +289,8 @@ def main(config: PPOTrainConfig):
 
     print("=== Starting PPO Training ===")
     for iteration in pbar:
-        agent.eval()
         if iteration % config.eval_freq == 1:
+            agent.eval()
             stime = time.perf_counter()
             
             eval_obs, _ = eval_envs.reset()
@@ -315,11 +314,11 @@ def main(config: PPOTrainConfig):
                 f"success_once: {eval_metrics_mean['success_once']:.2f}, "
                 f"return: {eval_metrics_mean['return']:.2f}"
             )
+            agent.train()
             if logger is not None:
                 eval_time = time.perf_counter() - stime
                 cumulative_times["eval_time"] += eval_time
                 logger.add_scalar("time/eval_time", eval_time, global_step)
-            # agent.train()
 
         if config.save_model and iteration % config.eval_freq == 1:
             torch.save(dict(agent=agent.state_dict(), optimizer=optimizer.state_dict()),  os.path.join(model_path, f"ckpt_{iteration}.pt"))
@@ -330,6 +329,7 @@ def main(config: PPOTrainConfig):
             lrnow = frac * config.ppo.learning_rate
             optimizer.param_groups[0]["lr"].copy_(lrnow)
 
+        
         torch.compiler.cudagraph_mark_step_begin()
         rollout_time = time.perf_counter()
         next_obs, next_done, container, final_values = rollout(next_obs, next_done)
