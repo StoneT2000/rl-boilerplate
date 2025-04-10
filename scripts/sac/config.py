@@ -27,7 +27,7 @@ class SACHyperparametersConfig:
     """the frequency of training policy (delayed)"""
     target_network_frequency: int = 2
     """the frequency of updates for the target nerworks"""
-    alpha: float = 0.2
+    alpha: float = 1.0
     """Entropy regularization coefficient."""
     autotune: bool = True
     """automatic tuning of the entropy coefficient"""
@@ -74,7 +74,7 @@ class SACTrainConfig:
 
     logger_freq: int = 2
     """logger frequency in terms of training iterations. Does not affect logging of training episode metrics"""
-    eval_freq: int = 25
+    eval_freq: int = 1000
     """evaluation frequency in terms of training iterations"""
     # eval_freq: int = 25
     # """evaluation frequency in terms of training iterations"""
@@ -176,6 +176,7 @@ try:
                     )
                 ),
                 total_timesteps=10_000_000,
+                learning_starts=1024 * 128,
                 steps_per_env_per_iteration=1,
                 grad_steps_per_iteration=10,
             )

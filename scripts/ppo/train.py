@@ -359,7 +359,7 @@ def main(config: PPOTrainConfig):
         logger.add_scalar("losses/old_approx_kl", out["old_approx_kl"].item(), global_step)
         logger.add_scalar("losses/approx_kl", out["approx_kl"].item(), global_step)
         logger.add_scalar("losses/clipfrac", torch.stack(clipfracs).mean().cpu().item(), global_step)
-        logger.add_scalar("charts/SPS", int(global_step / (time.time() - start_time)), global_step)
+        logger.add_scalar("time/SPS", int(global_step / (time.time() - start_time)), global_step)
         logger.add_scalar("time/step", global_step, global_step)
         logger.add_scalar("time/update_time", update_time, global_step)
         logger.add_scalar("time/rollout_time", rollout_time, global_step)

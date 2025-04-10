@@ -47,6 +47,9 @@ Example train script
 ```bash
 python scripts/ppo/train.py --help
 python scripts/ppo/train.py ms3-state --env.env-id PickCube-v1 --seed 1 --logger.exp-name "ppo-PickCube-v1-state-1"
+
+python scripts/sac/train.py --help
+python scripts/sac/train.py ms3-state --env.env-id PickCube-v1 --seed 1 --logger.exp-name "sac-PickCube-v1-state-1"
 ```
 
 The way it works with tyro CLI configuration is you can first specify a default config (train.py and config.py defines ms3-state and ms3-rgb for now), and then override all the other things as needed.

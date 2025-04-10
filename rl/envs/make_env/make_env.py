@@ -162,6 +162,8 @@ def make_env(
         obs = tensordict.TensorDict(obs, batch_size=(num_envs, ))
     sample_obs = obs[0:1]
     sample_acts = act_space.sample()[0:1]
+    if not isinstance(sample_acts, torch.Tensor):
+        sample_acts = torch.tensor(sample_acts).to(sample_obs.device)
 
     max_episode_steps = gym_utils.find_max_episode_steps_value(env)
 
