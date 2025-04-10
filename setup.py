@@ -9,6 +9,10 @@ setup(
         "tyro",
         "gymnasium==0.29.1",
         "wandb",
-        "tensorboard"
+        "tensorboard",
+        "torch",
+        "torchrl",
+        "tensordict",
+        "tqdm"
     ],
 )
