@@ -90,14 +90,6 @@ def main(config: PPOTrainConfig):
     ### Initialize logger ###
     orig_config = copy.deepcopy(config)
     logger = Logger(config.logger)
-
-    # make modifications to config for this training script
-    batch_size = int(config.env.num_envs * config.num_steps)
-    config.minibatch_size = batch_size // config.ppo.num_minibatches
-    config.batch_size = config.ppo.num_minibatches * config.minibatch_size
-    config.num_iterations = config.total_timesteps // config.batch_size
-    config.env.seed = config.seed
-    config.eval_env.seed = config.seed
     
     model_path = os.path.join(logger.workspace, logger.exp_name, "models")
     video_path = None if config.eval_env.record_video_path is None else os.path.join(logger.workspace, logger.exp_name, config.eval_env.record_video_path)
