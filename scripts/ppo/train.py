@@ -80,6 +80,7 @@ class Agent(nn.Module):
 
 def main(config: PPOTrainConfig):
     # background setup and seeding
+    config.setup()
     random.seed(config.seed)
     np.random.seed(config.seed)
     torch.manual_seed(config.seed)

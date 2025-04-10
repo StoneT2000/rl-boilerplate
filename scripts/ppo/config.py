@@ -105,6 +105,10 @@ class PPOTrainConfig:
         
         self.eval_env.record_episode_kwargs["max_steps_per_video"] = self.num_eval_steps
 
+    def setup(self):
+        """run any code before any of the PPO training script runs"""
+        pass
+
 try:
     import mani_skill.envs
     from mani_skill.utils.wrappers.flatten import FlattenRGBDObservationWrapper
