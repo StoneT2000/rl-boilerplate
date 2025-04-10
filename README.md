@@ -50,6 +50,17 @@ python scripts/ppo/train.py ms3-state --env.env-id PickCube-v1 --seed 1 --logger
 
 python scripts/sac/train.py --help
 python scripts/sac/train.py ms3-state --env.env-id PickCube-v1 --seed 1 --logger.exp-name "sac-PickCube-v1-state-1"
+
+python scripts/sac/train.py ms3-state --env.env-id PegInsertionSide-v1 --seed 1 --logger.exp-name "sac-PegInsertionSide-v1-state-1" --num_eval_steps 100 \
+  --total_timesteps 30_000_000 \
+  --buffer_size 1_000_000 \
+  --learning_starts 32768 \
+  --batch_size 4096 \
+  --grad_steps_per_iteration 20 \
+  --sac.gamma 0.99 \
+  --sac.tau 5e-3 \
+  --sac.policy_frequency 5 \
+  --env.ignore_terminations
 ```
 
 The way it works with tyro CLI configuration is you can first specify a default config (train.py and config.py defines ms3-state and ms3-rgb for now), and then override all the other things as needed.

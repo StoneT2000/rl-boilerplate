@@ -171,7 +171,7 @@ def main(config: SACTrainConfig):
         target_entropy = -torch.prod(torch.Tensor(envs.single_action_space.shape).to(device)).item()
         log_alpha = torch.zeros(1, requires_grad=True, device=device)
         alpha = log_alpha.detach().exp()
-        a_optimizer = optim.Adam([log_alpha], lr=config.sac.q_lr, capturable=config.cudagraphs and not config.compile)
+        a_optimizer = optim.Adam([log_alpha], lr=config.sac.alpha_lr, capturable=config.cudagraphs and not config.compile)
     else:
         alpha = torch.as_tensor(config.sac.alpha, device=device)
 
@@ -240,7 +240,7 @@ def main(config: SACTrainConfig):
         mode = None  # "reduce-overhead" if not args.cudagraphs else None
         update_main = torch.compile(update_main, mode=mode)
         update_pol = torch.compile(update_pol, mode=mode)
-        policy = torch.compile(agent.policy, mode=mode)
+        policy = torch.compile(policy, mode=mode)
 
     if config.cudagraphs:
         update_main = CudaGraphModule(update_main, in_keys=[], out_keys=[])

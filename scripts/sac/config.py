@@ -29,6 +29,8 @@ class SACHyperparametersConfig:
     """the frequency of updates for the target nerworks"""
     alpha: float = 1.0
     """Entropy regularization coefficient."""
+    alpha_lr: float = 3e-4
+    """the learning rate of the entropy coefficient optimizer"""
     autotune: bool = True
     """automatic tuning of the entropy coefficient"""
 
@@ -51,7 +53,7 @@ class SACTrainConfig:
     """total timesteps to train for"""
     steps_per_env_per_iteration: int = 1
     """number of steps per environment per training iteration (also known as number of parallel env steps)"""
-    grad_steps_per_iteration: int = 1
+    grad_steps_per_iteration: int = 10
     """number of gradient steps per training iteration"""
     buffer_size: int = 1_000_000
     """the replay memory buffer size"""
@@ -59,7 +61,7 @@ class SACTrainConfig:
     """where the replay buffer is stored. Can be 'cpu' or 'cuda' for GPU"""
     batch_size: int = 1024
     """the batch size of sample from the replay memory"""
-    learning_starts: int = 4_000
+    learning_starts: int = 1024 * 128
     """timestep to start learning"""
     
     # to be filled in runtime
@@ -161,24 +163,44 @@ try:
                         type="mlp",
                         arch_cfg=dict(
                             features=[256, 256, 256],
-                            activation="tanh",
-                            output_activation="tanh",
+                            activation="relu",
+                            output_activation="relu",
                         ),
                     ),
                     critic=NetworkConfig(
                         type="mlp",
                         arch_cfg=dict(
                             features=[256, 256, 256],
-                            activation="tanh",
-                            output_activation="tanh",
+                            activation="relu",
+                            output_activation="relu",
                             use_layer_norm=True,
                         ),
                     )
                 ),
+                # total_timesteps=10_000_000,
+                # learning_starts=1024 * 128,
+                # buffer_size=100_000,
+                # batch_size=4096,
+                # steps_per_env_per_iteration=1,
+                # grad_steps_per_iteration=10,
+                # sac=SACHyperparametersConfig(
+                #     q_lr=5e-4,
+                #     policy_lr=5e-4,
+                #     alpha_lr=5e-3,
+                #     tau=0.05,
+                # )
                 total_timesteps=10_000_000,
                 learning_starts=1024 * 128,
+                buffer_size=100_000,
+                batch_size=4096,
                 steps_per_env_per_iteration=1,
                 grad_steps_per_iteration=10,
+                # sac=SACHyperparametersConfig(
+                #     q_lr=5e-4,
+                #     policy_lr=5e-4,
+                #     alpha_lr=5e-3,
+                #     tau=0.05,
+                # )
             )
         )
     }
