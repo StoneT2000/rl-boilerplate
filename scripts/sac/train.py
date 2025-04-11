@@ -22,23 +22,21 @@ from tensordict.nn import CudaGraphModule, TensorDictModule
 
 
 class SoftQNetwork(nn.Module):
-    def __init__(self, config: SACNetworkConfig, encoder: nn.Module, x: torch.Tensor, device=None):
+    def __init__(self, config: SACNetworkConfig, x: torch.Tensor, sample_act: torch.Tensor, device=None):
         super().__init__()
-        self.encoder = encoder
-        self.net, x = build_network_from_cfg(config.critic, x, device=device)
+        self.net, x = build_network_from_cfg(config.critic, torch.cat([x, sample_act], dim=1), device=device)
         self.head = layer_init(nn.Linear(x.shape[1], 1, device=device))
 
-    def forward(self, obs, a):
-        if self.encoder is not None:
-            obs = self.encoder(obs)
-        x = torch.cat([obs, a], 1)
+    def forward(self, x, a):
+        x = torch.cat([x, a], 1)
         return self.head(self.net(x))
 
 class Actor(nn.Module):
     def __init__(self, config: SACNetworkConfig, log_std_range: tuple[float, float], encoder: nn.Module, sample_obs: torch.Tensor, sample_act: torch.Tensor, single_action_space: gym.spaces.Box, device=None):
         super().__init__()
         self.encoder = encoder
-        self.actor_feature_net, actor_sample_obs = build_network_from_cfg(config.network.actor, sample_obs, device=device)
+        sample_obs = self.encoder(sample_obs)
+        self.actor_feature_net, actor_sample_obs = build_network_from_cfg(config.actor, sample_obs, device=device)
         self.actor_head = layer_init(nn.Linear(actor_sample_obs.shape[1], sample_act.shape[1], device=device))
         self.actor_logstd = layer_init(nn.Linear(actor_sample_obs.shape[1], sample_act.shape[1], device=device))
 
@@ -48,13 +46,11 @@ class Actor(nn.Module):
         self._logstd_min = log_std_range[0]
         self._logstd_max = log_std_range[1]
     
-    def forward(self, obs):
-        if self.encoder is None:
-            actor_features = obs
-        else:
-            actor_features = self.encoder(obs)
-        if self.actor_feature_net is not None:
-            actor_features = self.actor_feature_net(actor_features)
+    def forward(self, obs, detach_encoder=False):
+        actor_features = self.encoder(obs)
+        if detach_encoder:
+            actor_features = actor_features.detach()
+        actor_features = self.actor_feature_net(actor_features)
         mean = self.actor_head(actor_features)
         log_std = self.actor_logstd(actor_features)
         log_std = torch.tanh(log_std)
@@ -72,8 +68,8 @@ class Actor(nn.Module):
         action = torch.tanh(mean) * self.action_scale + self.action_bias
         return action
     
-    def get_action_and_value(self, obs):
-        mean, log_std = self(obs)
+    def get_action_and_value(self, obs, detach_encoder=False):
+        mean, log_std = self(obs, detach_encoder)
         std = log_std.exp()
         normal = torch.distributions.Normal(mean, std)
         x_t = normal.rsample()  # for reparameterization trick (mean + std * N(0,1))
@@ -90,28 +86,30 @@ class Agent(nn.Module):
     def __init__(self, config: SACTrainConfig, sample_obs: torch.Tensor, sample_act: torch.Tensor, single_action_space: gym.spaces.Box, device=None):
         super().__init__()
         if config.network.shared_backbone is not None:
-            self.shared_encoder, sample_obs = build_network_from_cfg(config.network.shared_backbone, sample_obs, device=device)
+            self.shared_encoder, _ = build_network_from_cfg(config.network.shared_backbone, sample_obs, device=device)
         else:
-            self.shared_encoder = None
+            self.shared_encoder = nn.Identity()
+        with torch.no_grad():
+            sample_q_obs = self.shared_encoder(sample_obs)
 
-        ### set up q networks ###
-        
-        # for optimization we don't need to save qf1 and qf2, we just save the parameters of the networks
-        qf1 = SoftQNetwork(config, self.shared_encoder, torch.cat([sample_obs, sample_act], dim=1), device=device)
-        qf2 = SoftQNetwork(config, self.shared_encoder, torch.cat([sample_obs, sample_act], dim=1), device=device)
-        self.qnet_params = from_modules(qf1, qf2, as_module=True)
-        self.qnet_target = self.qnet_params.data.clone()
+            ### set up q networks ###
+            
+            # for optimization we don't need to save qf1 and qf2, we just save the parameters of the networks
+            qf1 = SoftQNetwork(config.network, sample_q_obs, sample_act, device=device)
+            qf2 = SoftQNetwork(config.network, sample_q_obs, sample_act, device=device)
+            self.qnet_params = from_modules(qf1, qf2, as_module=True)
+            self.qnet_target = self.qnet_params.data.clone()
 
-        # discard params of net
-        # use the "meta" torch device to create abstraction, but the actual parameters are held in self.qnet_params (q1, q2) and self.qnet_target
-        # this is similar to how jax would work, with separate function (qnet) and parameters (qnet_params, qnet_target)
-        self.qnet = SoftQNetwork(config, self.shared_encoder, torch.cat([sample_obs, sample_act], dim=1), device=device)
-        self.qnet = self.qnet.to("meta")
-        self.qnet_params.to_module(self.qnet)
+            # discard params of net
+            # use the "meta" torch device to create abstraction, but the actual parameters are held in self.qnet_params (q1, q2) and self.qnet_target
+            # this is similar to how jax would work, with separate function (qnet) and parameters (qnet_params, qnet_target)
+            self.qnet = SoftQNetwork(config.network, sample_q_obs, sample_act, device=device)
+            self.qnet = self.qnet.to("meta")
+            self.qnet_params.to_module(self.qnet)
+            
+            ### set up actor networks ###
+            self.actor = Actor(config.network, (config.sac.log_std_min, config.sac.log_std_max), self.shared_encoder, sample_obs, sample_act, single_action_space, device=device)
         
-        ### set up actor networks ###
-        self.actor = Actor(config, (config.sac.log_std_min, config.sac.log_std_max), self.shared_encoder, sample_obs, sample_act, single_action_space, device=device)
-    
 
 def main(config: SACTrainConfig):
     # background setup and seeding
@@ -148,15 +146,15 @@ def main(config: SACTrainConfig):
         checkpoint = torch.load(config.checkpoint, map_location=device)
 
     ### Create Agent ###
-    agent = Agent(config.network, env_meta.sample_obs, env_meta.sample_acts, envs.single_action_space, device=device)
+    agent = Agent(config, env_meta.sample_obs, env_meta.sample_acts, envs.single_action_space, device=device)
 
     q_optimizer = optim.Adam(agent.qnet.parameters(), lr=config.sac.q_lr, capturable=config.cudagraphs and not config.compile)
     actor_optimizer = optim.Adam(list(agent.actor.parameters()), lr=config.sac.policy_lr, capturable=config.cudagraphs and not config.compile)
 
     # we don't store actor_detach in the Agent class since we don't need to save a duplicate actor set of weights
-    actor_detach = Actor(config.network, agent.shared_encoder, env_meta.sample_obs, env_meta.sample_acts, envs.single_action_space, device=device)
+    actor_detach = Actor(config.network, (config.sac.log_std_min, config.sac.log_std_max), agent.shared_encoder, env_meta.sample_obs, env_meta.sample_acts, envs.single_action_space, device=device)
     from_module(agent.actor).data.to_module(actor_detach)
-    policy = TensorDictModule(actor_detach.get_action_and_value, in_keys=["obs"], out_keys=["action"])
+    policy = TensorDictModule(actor_detach.get_action_and_value, in_keys=["obs", "detach_encoder"], out_keys=["action"])
     eval_policy = TensorDictModule(actor_detach.get_eval_action, in_keys=["obs"], out_keys=["action"])
 
     
@@ -176,12 +174,14 @@ def main(config: SACTrainConfig):
         alpha = torch.as_tensor(config.sac.alpha, device=device)
 
     
-
     # lazy tensor storage is nice, determines the structure of the data based on the first added data point
     rb = ReplayBuffer(storage=LazyTensorStorage(config.buffer_size, device=device))
 
-    def batched_qf(params, obs, action, next_q_value=None):
+    def batched_qf(params, obs, action, next_q_value=None, detach_encoder=False):
         with params.to_module(agent.qnet):
+            obs = agent.shared_encoder(obs)
+            if detach_encoder:
+                obs = obs.detach()
             vals = agent.qnet(obs, action)
             if next_q_value is not None:
                 loss_val = F.mse_loss(vals.view(-1), next_q_value)
@@ -213,8 +213,8 @@ def main(config: SACTrainConfig):
     def update_pol(data):
         actor_optimizer.zero_grad()
         # TODO (stao): detach encoder!
-        pi, log_pi, _ = agent.actor.get_action_and_value(data["observations"])
-        qf_pi = torch.vmap(batched_qf, (0, None, None))(agent.qnet_params.data, data["observations"], pi)
+        pi, log_pi, _ = agent.actor.get_action_and_value(data["observations"], detach_encoder=True)
+        qf_pi = torch.vmap(batched_qf, (0, None, None, None, None))(agent.qnet_params.data, data["observations"], pi, None, True)
         if config.sac.ensemble_reduction == "min":
             qf = qf_pi.min(0).values
         elif config.sac.ensemble_reduction == "mean":
@@ -302,11 +302,12 @@ def main(config: SACTrainConfig):
             if not learning_has_started:
                 actions = torch.tensor(envs.action_space.sample(), dtype=torch.float32, device=device)
             else:
-                actions = policy(obs)
-                # actions = actions.detach()
+                actions = policy(obs=obs, detach_encoder=True)
 
             # TRY NOT TO MODIFY: execute the game and log data.
             next_obs, rewards, terminations, truncations, infos = envs.step(actions)
+            if isinstance(next_obs, dict):
+                next_obs = TensorDict(next_obs, batch_size=config.env.num_envs)
             real_next_obs = next_obs.clone()
 
             # always bootstrap strategy
@@ -318,6 +319,8 @@ def main(config: SACTrainConfig):
             if "final_info" in infos:
                 final_info = infos["final_info"]
                 done_mask = infos["_final_info"]
+                if isinstance(infos["final_observation"], dict):
+                    infos["final_observation"] = TensorDict(infos["final_observation"], batch_size=config.env.num_envs)
                 real_next_obs[need_final_obs] = infos["final_observation"][need_final_obs]
                 for k, v in final_info["episode"].items():
                     logger.add_scalar(f"train/{k}", v[done_mask].float().mean(), global_step)
