@@ -26,7 +26,7 @@ class SoftQNetwork(nn.Module):
         super().__init__()
         self.encoder = encoder
         self.net, x = build_network_from_cfg(config.critic, x, device=device)
-        self.head = nn.Linear(x.shape[1], 1, device=device)
+        self.head = layer_init(nn.Linear(x.shape[1], 1, device=device))
 
     def forward(self, obs, a):
         if self.encoder is not None:
@@ -39,8 +39,8 @@ class Actor(nn.Module):
         super().__init__()
         self.encoder = encoder
         self.actor_feature_net, actor_sample_obs = build_network_from_cfg(config.actor, sample_obs, device=device)
-        self.actor_head = nn.Linear(actor_sample_obs.shape[1], sample_act.shape[1], device=device)
-        self.actor_logstd = nn.Linear(actor_sample_obs.shape[1], sample_act.shape[1], device=device)
+        self.actor_head = layer_init(nn.Linear(actor_sample_obs.shape[1], sample_act.shape[1], device=device))
+        self.actor_logstd = layer_init(nn.Linear(actor_sample_obs.shape[1], sample_act.shape[1], device=device))
 
         h, l = single_action_space.high, single_action_space.low
         self.register_buffer("action_scale", torch.tensor((h - l) / 2.0, dtype=torch.float32, device=device))
@@ -215,8 +215,13 @@ def main(config: SACTrainConfig):
         # TODO (stao): detach encoder!
         pi, log_pi, _ = agent.actor.get_action_and_value(data["observations"])
         qf_pi = torch.vmap(batched_qf, (0, None, None))(agent.qnet_params.data, data["observations"], pi)
-        min_qf_pi = qf_pi.min(0).values
-        actor_loss = ((alpha * log_pi) - min_qf_pi).mean()
+        if config.sac.ensemble_reduction == "min":
+            qf = qf_pi.min(0).values
+        elif config.sac.ensemble_reduction == "mean":
+            qf = qf_pi.mean(0)
+        else:
+            raise ValueError(f"Invalid ensembling reduction: {config.sac.ensemble_reduction}")
+        actor_loss = ((alpha * log_pi) - qf).mean()
 
         actor_loss.backward()
         actor_optimizer.step()

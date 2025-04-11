@@ -33,6 +33,8 @@ class SACHyperparametersConfig:
     """the learning rate of the entropy coefficient optimizer"""
     autotune: bool = True
     """automatic tuning of the entropy coefficient"""
+    ensemble_reduction: str = "min"
+    """the reduction to use for ensembling the Q-values when updating the actor. min is the original SAC implementation, mean function is used by REDQ"""
 
 @dataclass
 class SACTrainConfig:
@@ -78,10 +80,7 @@ class SACTrainConfig:
     """logger frequency in terms of training iterations. Does not affect logging of training episode metrics"""
     eval_freq: int = 1000
     """evaluation frequency in terms of training iterations"""
-    # eval_freq: int = 25
-    # """evaluation frequency in terms of training iterations"""
-    # num_steps: int = 50
-    # """the number of steps to run in each environment per policy rollout"""
+
     num_eval_steps: int = 50
     """the number of steps to run in each evaluation environment during evaluation"""
     save_model: bool = True
