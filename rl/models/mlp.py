@@ -29,7 +29,7 @@ class MLPConfig(NetworkConfig):
 
 
 def layer_init(layer, std: float = np.sqrt(2), bias_const: float = 0.0):
-    torch.nn.init.orthogonal_(layer.weight, 1)
+    torch.nn.init.orthogonal_(layer.weight, std)
     torch.nn.init.constant_(layer.bias, bias_const)
     return layer
 

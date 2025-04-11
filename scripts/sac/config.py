@@ -35,6 +35,10 @@ class SACHyperparametersConfig:
     """automatic tuning of the entropy coefficient"""
     ensemble_reduction: str = "min"
     """the reduction to use for ensembling the Q-values when updating the actor. min is the original SAC implementation, mean function is used by REDQ"""
+    log_std_max: float = 2.0
+    """the maximum value of the log std"""
+    log_std_min: float = -5.0
+    """the minimum value of the log std"""
 
 @dataclass
 class SACTrainConfig:

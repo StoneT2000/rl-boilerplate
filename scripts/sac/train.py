@@ -35,16 +35,18 @@ class SoftQNetwork(nn.Module):
         return self.head(self.net(x))
 
 class Actor(nn.Module):
-    def __init__(self, config: SACNetworkConfig, encoder: nn.Module, sample_obs: torch.Tensor, sample_act: torch.Tensor, single_action_space: gym.spaces.Box, device=None):
+    def __init__(self, config: SACNetworkConfig, log_std_range: tuple[float, float], encoder: nn.Module, sample_obs: torch.Tensor, sample_act: torch.Tensor, single_action_space: gym.spaces.Box, device=None):
         super().__init__()
         self.encoder = encoder
-        self.actor_feature_net, actor_sample_obs = build_network_from_cfg(config.actor, sample_obs, device=device)
+        self.actor_feature_net, actor_sample_obs = build_network_from_cfg(config.network.actor, sample_obs, device=device)
         self.actor_head = layer_init(nn.Linear(actor_sample_obs.shape[1], sample_act.shape[1], device=device))
         self.actor_logstd = layer_init(nn.Linear(actor_sample_obs.shape[1], sample_act.shape[1], device=device))
 
         h, l = single_action_space.high, single_action_space.low
         self.register_buffer("action_scale", torch.tensor((h - l) / 2.0, dtype=torch.float32, device=device))
         self.register_buffer("action_bias", torch.tensor((h + l) / 2.0, dtype=torch.float32, device=device))
+        self._logstd_min = log_std_range[0]
+        self._logstd_max = log_std_range[1]
     
     def forward(self, obs):
         if self.encoder is None:
@@ -56,7 +58,7 @@ class Actor(nn.Module):
         mean = self.actor_head(actor_features)
         log_std = self.actor_logstd(actor_features)
         log_std = torch.tanh(log_std)
-        log_std = LOG_STD_MIN + 0.5 * (LOG_STD_MAX - LOG_STD_MIN) * (log_std + 1)  # From SpinUp / Denis Yarats
+        log_std = self._logstd_min + 0.5 * (self._logstd_max - self._logstd_min) * (log_std + 1)  # From SpinUp / Denis Yarats
         return mean, log_std
     
     def get_eval_action(self, obs):
@@ -84,13 +86,11 @@ class Actor(nn.Module):
         mean = torch.tanh(mean) * self.action_scale + self.action_bias
         return action, log_prob, mean
 
-LOG_STD_MAX = 2
-LOG_STD_MIN = -5
 class Agent(nn.Module):
-    def __init__(self, config: SACNetworkConfig, sample_obs: torch.Tensor, sample_act: torch.Tensor, single_action_space: gym.spaces.Box, device=None):
+    def __init__(self, config: SACTrainConfig, sample_obs: torch.Tensor, sample_act: torch.Tensor, single_action_space: gym.spaces.Box, device=None):
         super().__init__()
-        if config.shared_backbone is not None:
-            self.shared_encoder, sample_obs = build_network_from_cfg(config.shared_backbone, sample_obs, device=device)
+        if config.network.shared_backbone is not None:
+            self.shared_encoder, sample_obs = build_network_from_cfg(config.network.shared_backbone, sample_obs, device=device)
         else:
             self.shared_encoder = None
 
@@ -110,7 +110,7 @@ class Agent(nn.Module):
         self.qnet_params.to_module(self.qnet)
         
         ### set up actor networks ###
-        self.actor = Actor(config, self.shared_encoder, sample_obs, sample_act, single_action_space, device=device)
+        self.actor = Actor(config, (config.sac.log_std_min, config.sac.log_std_max), self.shared_encoder, sample_obs, sample_act, single_action_space, device=device)
     
 
 def main(config: SACTrainConfig):
