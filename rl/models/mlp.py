@@ -53,8 +53,6 @@ class MLP(nn.Module):
             if config.arch_cfg.activation is not None and i < len(features) - 2:
                 layers.append(config.arch_cfg.activation())
         if config.arch_cfg.output_activation is not None:
-            if config.arch_cfg.use_layer_norm:
-                layers.append(nn.LayerNorm(features[-1], device=device))
             layers.append(config.arch_cfg.output_activation())
 
         self.mlp = nn.Sequential(*layers)

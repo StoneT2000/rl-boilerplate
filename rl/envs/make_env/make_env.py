@@ -159,9 +159,17 @@ def make_env(
     # note some envs do not randomize assets, just poses if do this kind of reset
     obs, reset_info = env.reset(seed=seed)
     if isinstance(obs, dict):
-        obs = tensordict.TensorDict(obs, batch_size=(num_envs, ))
+        # find any leaf of the obs and use that as the device
+        data = next(iter(obs.values()))
+        if isinstance(data, torch.Tensor):
+            device = data.device
+        else:
+            device = torch.device("cpu")
+        obs = tensordict.TensorDict(obs, batch_size=(num_envs, ), device=device)
     sample_obs = obs[0:1]
     sample_acts = act_space.sample()[0:1]
+    if not isinstance(sample_acts, torch.Tensor):
+        sample_acts = torch.tensor(sample_acts).to(sample_obs.device)
 
     max_episode_steps = gym_utils.find_max_episode_steps_value(env)
 

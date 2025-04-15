@@ -29,16 +29,17 @@ def build_network_from_cfg(config: NetworkConfig, sample_input: torch.Tensor, de
     
     Returns the nn.Module as well as the sample output of the network
     """
-    if config.type == "mlp":
-        config = from_dict(data_class=MLPConfig, data=asdict(config))
-        config.arch_cfg.activation = activation_to_fn(config.arch_cfg.activation) # type: ignore
-        config.arch_cfg.output_activation = activation_to_fn(config.arch_cfg.output_activation) # type: ignore
-        net = MLP(config, sample_input, device=device)
-    elif config.type == "nature_cnn":
-        config = from_dict(data_class=NatureCNNConfig, data=asdict(config))
-        config.arch_cfg.activation = activation_to_fn(config.arch_cfg.activation) # type: ignore
-        config.arch_cfg.output_activation = activation_to_fn(config.arch_cfg.output_activation) # type: ignore
-        net = NatureCNN(config, sample_input, device=device)
-    else:
-        raise ValueError(f"{config.type} is not an available network type.")
+    with torch.no_grad():
+        if config.type == "mlp":
+            config = from_dict(data_class=MLPConfig, data=asdict(config))
+            config.arch_cfg.activation = activation_to_fn(config.arch_cfg.activation) # type: ignore
+            config.arch_cfg.output_activation = activation_to_fn(config.arch_cfg.output_activation) # type: ignore
+            net = MLP(config, sample_input, device=device)
+        elif config.type == "nature_cnn":
+            config = from_dict(data_class=NatureCNNConfig, data=asdict(config))
+            config.arch_cfg.activation = activation_to_fn(config.arch_cfg.activation) # type: ignore
+            config.arch_cfg.output_activation = activation_to_fn(config.arch_cfg.output_activation) # type: ignore
+            net = NatureCNN(config, sample_input, device=device)
+        else:
+            raise ValueError(f"{config.type} is not an available network type.")
     return net, net(sample_input)

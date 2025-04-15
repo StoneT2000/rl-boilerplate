@@ -104,6 +104,12 @@ class PPOTrainConfig:
                 self.eval_env.env_kwargs[k] = v
         
         self.eval_env.record_episode_kwargs["max_steps_per_video"] = self.num_eval_steps
+        batch_size = int(self.env.num_envs * self.num_steps)
+        self.minibatch_size = batch_size // self.ppo.num_minibatches
+        self.batch_size = self.ppo.num_minibatches * self.minibatch_size
+        self.num_iterations = self.total_timesteps // self.batch_size
+        self.env.seed = self.seed
+        self.eval_env.seed = self.seed
 
     def setup(self):
         """run any code before any of the PPO training script runs"""

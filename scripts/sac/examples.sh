@@ -1,0 +1,11 @@
+python scripts/sac/train.py ms3-state --env.env-id PegInsertionSide-v1 --seed 1 --num_eval_steps 100 \
+  --total_timesteps 30_000_000 \
+  --buffer_size 1_000_000 \
+  --learning_starts 32768 \
+  --batch_size 4096 \
+  --grad_steps_per_iteration 20 \
+  --sac.gamma 0.99 --sac.tau 5e-3 --sac.policy_frequency 5\
+  --sac.ensemble_reduction "mean" \
+  --env.ignore_terminations \
+  --logger.exp-name "sac-PegInsertionSide-v1-state-1-ensemble_reduction=mean" --logger.wandb --logger.wandb_project "rl-boilerplate-ms3" \
+  --compile --cudagraphs
