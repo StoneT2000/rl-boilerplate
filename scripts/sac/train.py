@@ -148,7 +148,7 @@ def main(config: SACTrainConfig):
     ### Create Agent ###
     agent = Agent(config, env_meta.sample_obs, env_meta.sample_acts, envs.single_action_space, device=device)
 
-    q_optimizer = optim.Adam(agent.qnet.parameters(), lr=config.sac.q_lr, capturable=config.cudagraphs and not config.compile)
+    q_optimizer = optim.Adam(list(agent.qnet.parameters()) + list(agent.shared_encoder.parameters()), lr=config.sac.q_lr, capturable=config.cudagraphs and not config.compile)
     actor_optimizer = optim.Adam(list(agent.actor.parameters()), lr=config.sac.policy_lr, capturable=config.cudagraphs and not config.compile)
 
     # we don't store actor_detach in the Agent class since we don't need to save a duplicate actor set of weights
@@ -193,6 +193,7 @@ def main(config: SACTrainConfig):
         # NOTE (from arth): we update shared encoder only during critic updates, not actor updates, we detach encoder
         q_optimizer.zero_grad()
         with torch.no_grad():
+            # TODO (stao): optimization, get_action_and_value can return the encoded features for Q nets...
             next_state_actions, next_state_log_pi, _ = agent.actor.get_action_and_value(data["next_observations"])
             qf_next_target = torch.vmap(batched_qf, (0, None, None))(
                 agent.qnet_target, data["next_observations"], next_state_actions
@@ -212,7 +213,6 @@ def main(config: SACTrainConfig):
         return TensorDict(qf_loss=qf_loss.detach())
     def update_pol(data):
         actor_optimizer.zero_grad()
-        # TODO (stao): detach encoder!
         pi, log_pi, _ = agent.actor.get_action_and_value(data["observations"], detach_encoder=True)
         qf_pi = torch.vmap(batched_qf, (0, None, None, None, None))(agent.qnet_params.data, data["observations"], pi, None, True)
         if config.sac.ensemble_reduction == "min":
@@ -357,6 +357,8 @@ def main(config: SACTrainConfig):
             if global_step % config.sac.target_network_frequency == 0:
                 # lerp is defined as x' = x + w (y-x), which is equivalent to x' = (1-w) x + w y
                 agent.qnet_target.lerp_(agent.qnet_params.data, config.sac.tau)
+                if config.network.critic_target_separate_backbone:
+                    agent.qnet_target_encoder.lerp_(agent.shared_encoder.data, config.sac.tau)
 
         update_time = time.perf_counter() - update_time
         cumulative_times["update_time"] += update_time

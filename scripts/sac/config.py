@@ -8,6 +8,8 @@ from rl.models.types import NetworkConfig
 class SACNetworkConfig:
     shared_backbone: NetworkConfig | None = None
     """the shared backbone network. Data is first processed through this network before being passed to the actor and critic networks."""
+    critic_target_separate_backbone: bool = False
+    """whether the target critic network has a separate backbone network weights which are updated with the target networks."""
     actor: NetworkConfig = field(default_factory=NetworkConfig)
     """the actor network"""
     critic: NetworkConfig = field(default_factory=NetworkConfig)
@@ -137,7 +139,7 @@ try:
                     env_id="PickCube-v1",
                     num_envs=1024,
                     vectorization_method="gpu",
-                    ignore_terminations=False, # partial resets
+                    ignore_terminations=True, # no partial resets
                     env_kwargs=dict(
                         obs_mode="state",
                         sim_backend="physx_cuda",
@@ -154,6 +156,7 @@ try:
                         sim_backend="physx_cuda",
                         reconfiguration_freq=1,
                         render_mode="rgb_array",
+                        enable_shadows=True,
                         human_render_camera_configs=dict(shader_pack="default")
                     ),
                     record_video_path="videos",
@@ -196,7 +199,7 @@ try:
                     env_id="PickCube-v1",
                     num_envs=256,
                     vectorization_method="gpu",
-                    ignore_terminations=False, # partial resets
+                    ignore_terminations=True, # partial resets
                     env_kwargs=dict(
                         obs_mode="rgb",
                         sim_backend="physx_cuda",
@@ -213,8 +216,8 @@ try:
                         obs_mode="rgb",
                         sim_backend="physx_cuda",
                         reconfiguration_freq=1,
-                        render_mode="rgb_array",
-                        human_render_camera_configs=dict(shader_pack="default")
+                        render_mode="all",
+                        # human_render_camera_configs=dict(shader_pack="default")
                     ),
                     wrappers=[FlattenRGBDObservationWrapper],
                     record_video_path="videos",
