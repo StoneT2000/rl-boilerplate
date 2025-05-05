@@ -32,11 +32,9 @@ class SoftQNetwork(nn.Module):
         return self.head(self.net(x))
 
 class Actor(nn.Module):
-    def __init__(self, config: SACNetworkConfig, log_std_range: tuple[float, float], encoder: nn.Module, sample_obs: torch.Tensor, sample_act: torch.Tensor, single_action_space: gym.spaces.Box, device=None):
+    def __init__(self, config: SACNetworkConfig, log_std_range: tuple[float, float], sample_q_obs: torch.Tensor, sample_act: torch.Tensor, single_action_space: gym.spaces.Box, device=None):
         super().__init__()
-        self.encoder = encoder
-        sample_obs = self.encoder(sample_obs)
-        self.actor_feature_net, actor_sample_obs = build_network_from_cfg(config.actor, sample_obs, device=device)
+        self.actor_feature_net, actor_sample_obs = build_network_from_cfg(config.actor, sample_q_obs, device=device)
         self.actor_head = layer_init(nn.Linear(actor_sample_obs.shape[1], sample_act.shape[1], device=device))
         self.actor_logstd = layer_init(nn.Linear(actor_sample_obs.shape[1], sample_act.shape[1], device=device))
 
@@ -46,10 +44,7 @@ class Actor(nn.Module):
         self._logstd_min = log_std_range[0]
         self._logstd_max = log_std_range[1]
     
-    def forward(self, obs, detach_encoder=False):
-        actor_features = self.encoder(obs)
-        if detach_encoder:
-            actor_features = actor_features.detach()
+    def forward(self, actor_features):
         actor_features = self.actor_feature_net(actor_features)
         mean = self.actor_head(actor_features)
         log_std = self.actor_logstd(actor_features)
@@ -57,19 +52,15 @@ class Actor(nn.Module):
         log_std = self._logstd_min + 0.5 * (self._logstd_max - self._logstd_min) * (log_std + 1)  # From SpinUp / Denis Yarats
         return mean, log_std
     
-    def get_eval_action(self, obs):
-        if self.encoder is None:
-            actor_features = obs
-        else:
-            actor_features = self.encoder(obs)
+    def get_eval_action(self, actor_features):
         if self.actor_feature_net is not None:
             actor_features = self.actor_feature_net(actor_features)
         mean = self.actor_head(actor_features)
         action = torch.tanh(mean) * self.action_scale + self.action_bias
         return action
     
-    def get_action_and_value(self, obs, detach_encoder=False):
-        mean, log_std = self(obs, detach_encoder)
+    def get_action_and_value(self, obs):
+        mean, log_std = self(obs)
         std = log_std.exp()
         normal = torch.distributions.Normal(mean, std)
         x_t = normal.rsample()  # for reparameterization trick (mean + std * N(0,1))
@@ -87,8 +78,11 @@ class Agent(nn.Module):
         super().__init__()
         if config.network.shared_backbone is not None:
             self.shared_encoder, _ = build_network_from_cfg(config.network.shared_backbone, sample_obs, device=device)
+            self.target_encoder, _ = build_network_from_cfg(config.network.shared_backbone, sample_obs, device=device)
+            self.target_encoder.load_state_dict(self.shared_encoder.state_dict())
         else:
             self.shared_encoder = nn.Identity()
+            self.target_encoder = nn.Identity()
         with torch.no_grad():
             sample_q_obs = self.shared_encoder(sample_obs)
 
@@ -108,7 +102,7 @@ class Agent(nn.Module):
             self.qnet_params.to_module(self.qnet)
             
             ### set up actor networks ###
-            self.actor = Actor(config.network, (config.sac.log_std_min, config.sac.log_std_max), self.shared_encoder, sample_obs, sample_act, single_action_space, device=device)
+            self.actor = Actor(config.network, (config.sac.log_std_min, config.sac.log_std_max), sample_q_obs, sample_act, single_action_space, device=device)
         
 
 def main(config: SACTrainConfig):
@@ -149,13 +143,13 @@ def main(config: SACTrainConfig):
     ### Create Agent ###
     agent = Agent(config, env_meta.sample_obs, env_meta.sample_acts, envs.single_action_space, device=device)
 
-    q_optimizer = optim.Adam(agent.qnet.parameters(), lr=config.sac.q_lr, capturable=config.cudagraphs and not config.compile)
+    q_optimizer = optim.Adam(list(agent.qnet.parameters()) + list(agent.shared_encoder.parameters()), lr=config.sac.q_lr, capturable=config.cudagraphs and not config.compile)
     actor_optimizer = optim.Adam(list(agent.actor.parameters()), lr=config.sac.policy_lr, capturable=config.cudagraphs and not config.compile)
 
     # we don't store actor_detach in the Agent class since we don't need to save a duplicate actor set of weights
-    actor_detach = Actor(config.network, (config.sac.log_std_min, config.sac.log_std_max), agent.shared_encoder, env_meta.sample_obs, env_meta.sample_acts, envs.single_action_space, device=device)
+    actor_detach = Actor(config.network, (config.sac.log_std_min, config.sac.log_std_max), agent.shared_encoder(env_meta.sample_obs).detach(), env_meta.sample_acts, envs.single_action_space, device=device)
     from_module(agent.actor).data.to_module(actor_detach)
-    policy = TensorDictModule(actor_detach.get_action_and_value, in_keys=["obs", "detach_encoder"], out_keys=["action"])
+    policy = TensorDictModule(actor_detach.get_action_and_value, in_keys=["obs"], out_keys=["action"])
     eval_policy = TensorDictModule(actor_detach.get_eval_action, in_keys=["obs"], out_keys=["action"])
 
     
@@ -178,9 +172,12 @@ def main(config: SACTrainConfig):
     # lazy tensor storage is nice, determines the structure of the data based on the first added data point
     rb = ReplayBuffer(storage=LazyTensorStorage(config.buffer_size, device=buffer_device))
 
-    def batched_qf(params, obs, action, next_q_value=None, detach_encoder=False):
+    def batched_qf(params, obs, action, next_q_value=None, detach_encoder=False, target_encoder=False):
         with params.to_module(agent.qnet):
-            obs = agent.shared_encoder(obs)
+            if target_encoder:
+                obs = agent.target_encoder(obs)
+            else:
+                obs = agent.shared_encoder(obs)
             if detach_encoder:
                 obs = obs.detach()
             vals = agent.qnet(obs, action)
@@ -194,9 +191,9 @@ def main(config: SACTrainConfig):
         # NOTE (from arth): we update shared encoder only during critic updates, not actor updates, we detach encoder
         q_optimizer.zero_grad()
         with torch.no_grad():
-            next_state_actions, next_state_log_pi, _ = agent.actor.get_action_and_value(data["next_observations"])
-            qf_next_target = torch.vmap(batched_qf, (0, None, None))(
-                agent.qnet_target, data["next_observations"], next_state_actions
+            next_state_actions, next_state_log_pi, _ = agent.actor.get_action_and_value(agent.shared_encoder(data["next_observations"]))
+            qf_next_target = torch.vmap(batched_qf, (0, None, None, None, None, None))(
+                agent.qnet_target, data["next_observations"], next_state_actions, None, False, True
             )
             min_qf_next_target = qf_next_target.min(dim=0).values - alpha * next_state_log_pi
             next_q_value = data["rewards"].flatten() + (
@@ -214,7 +211,7 @@ def main(config: SACTrainConfig):
     def update_pol(data):
         actor_optimizer.zero_grad()
         # TODO (stao): detach encoder!
-        pi, log_pi, _ = agent.actor.get_action_and_value(data["observations"], detach_encoder=True)
+        pi, log_pi, _ = agent.actor.get_action_and_value(agent.shared_encoder(data["observations"]).detach())
         qf_pi = torch.vmap(batched_qf, (0, None, None, None, None))(agent.qnet_params.data, data["observations"], pi, None, True)
         if config.sac.ensemble_reduction == "min":
             qf = qf_pi.min(0).values
@@ -230,7 +227,7 @@ def main(config: SACTrainConfig):
         if config.sac.autotune:
             a_optimizer.zero_grad()
             with torch.no_grad():
-                _, log_pi, _ = agent.actor.get_action_and_value(data["observations"])
+                _, log_pi, _ = agent.actor.get_action_and_value(agent.shared_encoder(data["observations"]))
             alpha_loss = (-log_alpha.exp() * (log_pi + target_entropy)).mean()
 
             alpha_loss.backward()
@@ -275,7 +272,7 @@ def main(config: SACTrainConfig):
             num_episodes = 0
             for _ in range(config.num_eval_steps):
                 with torch.no_grad():
-                    eval_obs, eval_rew, eval_terminations, eval_truncations, eval_infos = eval_envs.step(eval_policy(eval_obs))
+                    eval_obs, eval_rew, eval_terminations, eval_truncations, eval_infos = eval_envs.step(eval_policy(agent.shared_encoder(eval_obs)))
                     if "final_info" in eval_infos:
                         mask = eval_infos["_final_info"]
                         num_episodes += mask.sum()
@@ -292,6 +289,13 @@ def main(config: SACTrainConfig):
                 f"return: {eval_metrics_mean['return']:.2f}"
             )
             agent.train()
+            if config.save_model:
+                torch.save(
+                    dict(
+                        agent=agent.state_dict(),
+                    ),
+                    os.path.join(model_path, f"sac_model_{global_step}.pth")
+                )
             if logger is not None:
                 eval_time = time.perf_counter() - stime
                 cumulative_times["eval_time"] += eval_time
@@ -303,7 +307,7 @@ def main(config: SACTrainConfig):
             if not learning_has_started:
                 actions = torch.tensor(envs.action_space.sample(), dtype=torch.float32, device=device)
             else:
-                actions = policy(obs=obs, detach_encoder=True)
+                actions = policy(agent.shared_encoder(obs).detach())
 
             # TRY NOT TO MODIFY: execute the game and log data.
             next_obs, rewards, terminations, truncations, infos = envs.step(actions)
@@ -356,6 +360,13 @@ def main(config: SACTrainConfig):
 
             # update the target networks
             if global_step % config.sac.target_network_frequency == 0:
+                for param, target_param in zip(
+                    agent.shared_encoder.parameters(), agent.target_encoder.parameters()
+                ):
+                    target_param.data.copy_(
+                        config.sac.tau * param.data
+                        + (1 - config.sac.tau) * target_param.data
+                    )
                 # lerp is defined as x' = x + w (y-x), which is equivalent to x' = (1-w) x + w y
                 agent.qnet_target.lerp_(agent.qnet_params.data, config.sac.tau)
 
