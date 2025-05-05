@@ -102,6 +102,8 @@ class SACTrainConfig:
     """if toggled, `torch.backends.cudnn.deterministic=False`"""
     cuda: bool = True
     """if toggled, cuda will be enabled by default"""
+    buffer_cuda: bool = True
+    """if toggled, the replay buffer will be stored on GPU"""
 
 
     def __post_init__(self):
@@ -255,6 +257,7 @@ try:
                 batch_size=1024,
                 steps_per_env_per_iteration=1,
                 grad_steps_per_iteration=10,
+                buffer_cuda=False,
             )
         )
     }

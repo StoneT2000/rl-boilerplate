@@ -8,7 +8,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import tqdm
-from config import SACNetworkConfig, SACTrainConfig, ms3_configs
+from .config import SACNetworkConfig, SACTrainConfig, ms3_configs
 import tyro
 import torch.optim as optim
 import torch.nn.functional as F
@@ -119,6 +119,7 @@ def main(config: SACTrainConfig):
     torch.manual_seed(config.seed)
     torch.backends.cudnn.deterministic = config.torch_deterministic
     device = torch.device("cuda" if torch.cuda.is_available() and config.cuda else "cpu")
+    buffer_device = torch.device("cuda" if torch.cuda.is_available() and config.buffer_cuda else "cpu")
 
     ### Initialize logger ###
     orig_config = copy.deepcopy(config)
@@ -175,7 +176,7 @@ def main(config: SACTrainConfig):
 
     
     # lazy tensor storage is nice, determines the structure of the data based on the first added data point
-    rb = ReplayBuffer(storage=LazyTensorStorage(config.buffer_size, device=device))
+    rb = ReplayBuffer(storage=LazyTensorStorage(config.buffer_size, device=buffer_device))
 
     def batched_qf(params, obs, action, next_q_value=None, detach_encoder=False):
         with params.to_module(agent.qnet):
@@ -237,8 +238,8 @@ def main(config: SACTrainConfig):
         return TensorDict(alpha=alpha.detach(), actor_loss=actor_loss.detach(), alpha_loss=alpha_loss.detach())
 
     def extend_and_sample(transition):
-        rb.extend(transition)
-        return rb.sample(config.batch_size)
+        rb.extend(transition.to(buffer_device))
+        return rb.sample(config.batch_size).to(device)
 
     is_extend_compiled = False
     if config.compile:
@@ -332,7 +333,7 @@ def main(config: SACTrainConfig):
                 "rewards": rewards,
                 "dones": dones,
             }, batch_size=config.env.num_envs)
-            rb.extend(transition)
+            rb.extend(transition.to(buffer_device))
 
             obs = next_obs
         rollout_time = time.perf_counter() - rollout_time
@@ -346,7 +347,7 @@ def main(config: SACTrainConfig):
         learning_has_started = True
         for local_update in range(config.grad_steps_per_iteration):
             global_update += 1
-            data = rb.sample(batch_size=config.batch_size)
+            data = rb.sample(batch_size=config.batch_size).to(device)
             metrics = update_main(data)
 
             if global_update % config.sac.policy_frequency == 0:
