@@ -169,7 +169,7 @@ python -m scripts.sac.train ms3-state --env.env-id PegInsertionSide-v1 --seed 1 
 
 
 # ------------------------------------------------------------------------------
-# SAC State PegInsertionSide-v1
+# SAC State UnitreeG1TransportBox-v1
 # ------------------------------------------------------------------------------
 
 python -m scripts.sac.train ms3-state --env.env-id UnitreeG1TransportBox-v1 --seed 1 \
