@@ -15,17 +15,31 @@ import torch.nn.functional as F
 from rl.envs.make_env.make_env import make_env_from_config
 from rl.logger.logger import Logger
 from rl.models.builder import build_network_from_cfg
-from rl.models.mlp import layer_init
 from torchrl.data import LazyTensorStorage, ReplayBuffer
 from tensordict import TensorDict, from_module, from_modules
 from tensordict.nn import CudaGraphModule, TensorDictModule
 
+def weight_init(m):
+    """Custom weight init for Conv2D and Linear layers."""
+    if isinstance(m, nn.Linear):
+        nn.init.orthogonal_(m.weight.data)
+        m.bias.data.fill_(0.0)
+    elif isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d):
+        # delta-orthogonal init from https://arxiv.org/pdf/1806.05393.pdf
+        assert m.weight.size(2) == m.weight.size(3)
+        m.weight.data.fill_(0.0)
+        m.bias.data.fill_(0.0)
+        mid = m.weight.size(2) // 2
+        gain = nn.init.calculate_gain("relu")
+        nn.init.orthogonal_(m.weight.data[:, :, mid, mid], gain)
 
 class SoftQNetwork(nn.Module):
     def __init__(self, config: SACNetworkConfig, x: torch.Tensor, sample_act: torch.Tensor, device=None):
         super().__init__()
         self.net, x = build_network_from_cfg(config.critic, torch.cat([x, sample_act], dim=1), device=device)
-        self.head = layer_init(nn.Linear(x.shape[1], 1, device=device))
+        self.head = nn.Linear(x.shape[1], 1, device=device)
+        
+        self.apply(weight_init)
 
     def forward(self, x, a):
         x = torch.cat([x, a], 1)
@@ -35,14 +49,16 @@ class Actor(nn.Module):
     def __init__(self, config: SACNetworkConfig, log_std_range: tuple[float, float], sample_q_obs: torch.Tensor, sample_act: torch.Tensor, single_action_space: gym.spaces.Box, device=None):
         super().__init__()
         self.actor_feature_net, actor_sample_obs = build_network_from_cfg(config.actor, sample_q_obs, device=device)
-        self.actor_head = layer_init(nn.Linear(actor_sample_obs.shape[1], sample_act.shape[1], device=device))
-        self.actor_logstd = layer_init(nn.Linear(actor_sample_obs.shape[1], sample_act.shape[1], device=device))
+        self.actor_head = nn.Linear(actor_sample_obs.shape[1], sample_act.shape[1], device=device)
+        self.actor_logstd = nn.Linear(actor_sample_obs.shape[1], sample_act.shape[1], device=device)
 
         h, l = single_action_space.high, single_action_space.low
         self.register_buffer("action_scale", torch.tensor((h - l) / 2.0, dtype=torch.float32, device=device))
         self.register_buffer("action_bias", torch.tensor((h + l) / 2.0, dtype=torch.float32, device=device))
         self._logstd_min = log_std_range[0]
         self._logstd_max = log_std_range[1]
+
+        self.apply(weight_init)
     
     def forward(self, actor_features):
         actor_features = self.actor_feature_net(actor_features)
@@ -78,6 +94,7 @@ class Agent(nn.Module):
         super().__init__()
         if config.network.shared_backbone is not None:
             self.shared_encoder, _ = build_network_from_cfg(config.network.shared_backbone, sample_obs, device=device)
+            self.shared_encoder.apply(weight_init)
             self.target_encoder, _ = build_network_from_cfg(config.network.shared_backbone, sample_obs, device=device)
             self.target_encoder.load_state_dict(self.shared_encoder.state_dict())
         else:
@@ -152,6 +169,13 @@ def main(config: SACTrainConfig):
     policy = TensorDictModule(actor_detach.get_action_and_value, in_keys=["obs"], out_keys=["action"])
     eval_policy = TensorDictModule(actor_detach.get_eval_action, in_keys=["obs"], out_keys=["action"])
 
+    # compile encoders
+    if config.network.shared_backbone is not None:
+        shared_encoder_detach, _ = build_network_from_cfg(config.network.shared_backbone, env_meta.sample_obs, device=device)
+        from_module(agent.shared_encoder).data.to_module(shared_encoder_detach)
+        shared_encoder = TensorDictModule(shared_encoder_detach.forward, in_keys=["obs"], out_keys=["obs"])
+    else:
+        shared_encoder = nn.Identity()
     
     if checkpoint is not None:
         agent.load_state_dict(checkpoint["agent"])
@@ -234,21 +258,20 @@ def main(config: SACTrainConfig):
             a_optimizer.step()
         return TensorDict(alpha=alpha.detach(), actor_loss=actor_loss.detach(), alpha_loss=alpha_loss.detach())
 
-    def extend_and_sample(transition):
-        rb.extend(transition.to(buffer_device))
-        return rb.sample(config.batch_size).to(device)
-
     is_extend_compiled = False
     if config.compile:
         mode = None  # "reduce-overhead" if not args.cudagraphs else None
         update_main = torch.compile(update_main, mode=mode)
         update_pol = torch.compile(update_pol, mode=mode)
         policy = torch.compile(policy, mode=mode)
+        # eval_policy = torch.compile(eval_policy, mode=mode)
+        shared_encoder = torch.compile(shared_encoder, mode=mode)
 
     if config.cudagraphs:
         update_main = CudaGraphModule(update_main, in_keys=[], out_keys=[])
         update_pol = CudaGraphModule(update_pol, in_keys=[], out_keys=[])
         # policy = CudaGraphModule(policy)
+        # shared_encoder = CudaGraphModule(shared_encoder)
 
 
     # TRY NOT TO MODIFY: start the game
@@ -272,7 +295,7 @@ def main(config: SACTrainConfig):
             num_episodes = 0
             for _ in range(config.num_eval_steps):
                 with torch.no_grad():
-                    eval_obs, eval_rew, eval_terminations, eval_truncations, eval_infos = eval_envs.step(eval_policy(agent.shared_encoder(eval_obs)))
+                    eval_obs, eval_rew, eval_terminations, eval_truncations, eval_infos = eval_envs.step(eval_policy(shared_encoder(eval_obs)))
                     if "final_info" in eval_infos:
                         mask = eval_infos["_final_info"]
                         num_episodes += mask.sum()
@@ -307,7 +330,7 @@ def main(config: SACTrainConfig):
             if not learning_has_started:
                 actions = torch.tensor(envs.action_space.sample(), dtype=torch.float32, device=device)
             else:
-                actions = policy(agent.shared_encoder(obs).detach())
+                actions = policy(shared_encoder(obs=obs))
 
             # TRY NOT TO MODIFY: execute the game and log data.
             next_obs, rewards, terminations, truncations, infos = envs.step(actions)
@@ -360,15 +383,12 @@ def main(config: SACTrainConfig):
 
             # update the target networks
             if global_step % config.sac.target_network_frequency == 0:
-                for param, target_param in zip(
-                    agent.shared_encoder.parameters(), agent.target_encoder.parameters()
-                ):
-                    target_param.data.copy_(
-                        config.sac.tau * param.data
-                        + (1 - config.sac.tau) * target_param.data
-                    )
-                # lerp is defined as x' = x + w (y-x), which is equivalent to x' = (1-w) x + w y
-                agent.qnet_target.lerp_(agent.qnet_params.data, config.sac.tau)
+                with torch.no_grad():
+                    for target_param, online_param in zip(agent.target_encoder.parameters(), agent.shared_encoder.parameters()):
+                        target_param.lerp_(online_param, config.sac.tau)
+
+                    # lerp is defined as x' = x + w (y-x), which is equivalent to x' = (1-w) x + w y
+                    agent.qnet_target.lerp_(agent.qnet_params.data, config.sac.tau)
 
         update_time = time.perf_counter() - update_time
         cumulative_times["update_time"] += update_time

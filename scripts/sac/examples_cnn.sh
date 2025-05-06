@@ -18,7 +18,7 @@ python -m scripts.sac.train ms3-rgb --env.env-id PickCube-v1 --seed 1 \
   --buffer_size 1_000_000 \
   --learning_starts $((256 * 32)) \
   \
-  --total_timesteps 10_000_000 \
+  --total_timesteps 2_000_000 \
   --steps_per_env_per_iteration 1 \
   --grad_steps_per_iteration 20 \
   --sac.policy-frequency 1 \
