@@ -196,15 +196,11 @@ def main(config: SACTrainConfig):
     # lazy tensor storage is nice, determines the structure of the data based on the first added data point
     rb = ReplayBuffer(storage=LazyTensorStorage(config.buffer_size, device=buffer_device))
 
-    def batched_qf(params, obs, action, next_q_value=None, detach_encoder=False, target_encoder=False):
+    # NOTE (arth): removed encoder from batched_qf, instead encode once and reuse for each qf
+    #       typically batchnorm, dropout, etc is not used for these encoders
+    def batched_qf(params, encoded_obs, action, next_q_value=None):
         with params.to_module(agent.qnet):
-            if target_encoder:
-                obs = agent.target_encoder(obs)
-            else:
-                obs = agent.shared_encoder(obs)
-            if detach_encoder:
-                obs = obs.detach()
-            vals = agent.qnet(obs, action)
+            vals = agent.qnet(encoded_obs, action)
             if next_q_value is not None:
                 loss_val = F.mse_loss(vals.view(-1), next_q_value)
                 return loss_val
@@ -216,8 +212,8 @@ def main(config: SACTrainConfig):
         q_optimizer.zero_grad()
         with torch.no_grad():
             next_state_actions, next_state_log_pi, _ = agent.actor.get_action_and_value(agent.shared_encoder(data["next_observations"]))
-            qf_next_target = torch.vmap(batched_qf, (0, None, None, None, None, None))(
-                agent.qnet_target, data["next_observations"], next_state_actions, None, False, True
+            qf_next_target = torch.vmap(batched_qf, (0, None, None, None))(
+                agent.qnet_target, agent.target_encoder(data["next_observations"]), next_state_actions, None
             )
             min_qf_next_target = qf_next_target.min(dim=0).values - alpha * next_state_log_pi
             next_q_value = data["rewards"].flatten() + (
@@ -225,7 +221,7 @@ def main(config: SACTrainConfig):
             ).float() * config.sac.gamma * min_qf_next_target.view(-1)
 
         qf_a_values = torch.vmap(batched_qf, (0, None, None, None))(
-            agent.qnet_params, data["observations"], data["actions"], next_q_value
+            agent.qnet_params, agent.shared_encoder(data["observations"]), data["actions"], next_q_value
         )
         qf_loss = qf_a_values.sum(0)
 
@@ -235,8 +231,9 @@ def main(config: SACTrainConfig):
     def update_pol(data):
         actor_optimizer.zero_grad()
         # TODO (stao): detach encoder!
-        pi, log_pi, _ = agent.actor.get_action_and_value(agent.shared_encoder(data["observations"]).detach())
-        qf_pi = torch.vmap(batched_qf, (0, None, None, None, None))(agent.qnet_params.data, data["observations"], pi, None, True)
+        encoded_obs = agent.shared_encoder(data["observations"]).detach()
+        pi, log_pi, _ = agent.actor.get_action_and_value(encoded_obs)
+        qf_pi = torch.vmap(batched_qf, (0, None, None, None))(agent.qnet_params.data, encoded_obs, pi, None)
         if config.sac.ensemble_reduction == "min":
             qf = qf_pi.min(0).values
         elif config.sac.ensemble_reduction == "mean":

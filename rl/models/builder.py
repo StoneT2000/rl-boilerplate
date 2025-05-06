@@ -10,6 +10,7 @@ from dacite import from_dict
 
 from rl.models.mlp import MLP, MLPConfig
 from rl.models.vision.nature_cnn import NatureCNN, NatureCNNConfig
+from rl.models.vision.nature_cnn_proj import NatureCNNProj, NatureCNNProjConfig
 from rl.models.vision.ddpg_cnn import DDPGCNN, DDPGCNNConfig
 from rl.models.types import NetworkConfig
 
@@ -41,6 +42,11 @@ def build_network_from_cfg(config: NetworkConfig, sample_input: torch.Tensor, de
             config.arch_cfg.activation = activation_to_fn(config.arch_cfg.activation) # type: ignore
             config.arch_cfg.output_activation = activation_to_fn(config.arch_cfg.output_activation) # type: ignore
             net = NatureCNN(config, sample_input, device=device)
+        elif config.type == "nature_cnn_proj":
+            config = from_dict(data_class=NatureCNNProjConfig, data=asdict(config))
+            config.arch_cfg.activation = activation_to_fn(config.arch_cfg.activation) # type: ignore
+            config.arch_cfg.output_activation = activation_to_fn(config.arch_cfg.output_activation) # type: ignore
+            net = NatureCNNProj(config, sample_input, device=device)
         elif config.type == "ddpg_cnn":
             config = from_dict(data_class=DDPGCNNConfig, data=asdict(config))
             config.arch_cfg.activation = activation_to_fn(config.arch_cfg.activation) # type: ignore
