@@ -105,10 +105,9 @@ class Agent(nn.Module):
 
             ### set up q networks ###
             
-            # for optimization we don't need to save qf1 and qf2, we just save the parameters of the networks
-            qf1 = SoftQNetwork(config.network, sample_q_obs, sample_act, device=device)
-            qf2 = SoftQNetwork(config.network, sample_q_obs, sample_act, device=device)
-            self.qnet_params = from_modules(qf1, qf2, as_module=True)
+            # for optimization we don't need to save qfs, we just save the parameters of the networks
+            qfs = [SoftQNetwork(config.network, sample_q_obs, sample_act, device=device) for _ in range(config.sac.num_q)]
+            self.qnet_params = from_modules(*qfs, as_module=True)
             self.qnet_target = self.qnet_params.data.clone()
 
             # discard params of net
@@ -212,8 +211,12 @@ def main(config: SACTrainConfig):
         q_optimizer.zero_grad()
         with torch.no_grad():
             next_state_actions, next_state_log_pi, _ = agent.actor.get_action_and_value(agent.shared_encoder(data["next_observations"]))
+
+            # randomly select min_q number of qfs
+            selected_indices = torch.randperm(config.sac.num_q)[:config.sac.min_q]
+            subset_qnet_target = agent.qnet_target[selected_indices]
             qf_next_target = torch.vmap(batched_qf, (0, None, None, None))(
-                agent.qnet_target, agent.target_encoder(data["next_observations"]), next_state_actions, None
+                subset_qnet_target, agent.target_encoder(data["next_observations"]), next_state_actions, None
             )
             min_qf_next_target = qf_next_target.min(dim=0).values - alpha * next_state_log_pi
             next_q_value = data["rewards"].flatten() + (

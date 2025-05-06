@@ -1,11 +1,11 @@
 #!/usr/bin/bash
 
 # ------------------------------------------------------------------------------
-# SAC State
+# SAC RGB
 # ------------------------------------------------------------------------------
 
 # PickCube-v1
-python -m scripts.sac.train ms3-rgb-ddpg --env.env-id PickCube-v1 --seed 1 \
+python -m scripts.sac.train ms3-rgb --env.env-id PickCube-v1 --seed 1 \
   --env.max-episode-steps 50 \
   --env.ignore-terminations \
   \

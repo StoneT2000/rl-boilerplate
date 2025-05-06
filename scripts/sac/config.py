@@ -35,10 +35,18 @@ class SACHyperparametersConfig:
     """automatic tuning of the entropy coefficient"""
     ensemble_reduction: str = "min"
     """the reduction to use for ensembling the Q-values when updating the actor. min is the original SAC implementation, mean function is used by REDQ"""
+    min_q: int = 2
+    """num Q for min Q-target"""
+    num_q: int = 2
+    """num Q-functions in ensemble"""
     log_std_max: float = 2.0
     """the maximum value of the log std"""
     log_std_min: float = -5.0
     """the minimum value of the log std"""
+
+    def __post_init__(self):
+        if self.num_q > 2:
+            assert self.ensemble_reduction == "mean", "large Q-ensembles should use mean ensemble reduction"
 
 @dataclass
 class SACTrainConfig:
@@ -190,7 +198,7 @@ try:
                 grad_steps_per_iteration=10,
             )
         ),
-        "ms3-rgb-ddpg": (
+        "ms3-rgb": (
             "ManiSkill3 RGB based SAC training",
             SACTrainConfig(
                 seed=0,
@@ -227,72 +235,6 @@ try:
                 network=SACNetworkConfig(
                     shared_backbone=NetworkConfig(
                         type="ddpg_cnn",
-                        arch_cfg=dict(activation="relu"),
-                    ),
-                    actor=NetworkConfig(
-                        type="mlp",
-                        arch_cfg=dict(
-                            features=[256, 256, 256],
-                            activation="relu",
-                            output_activation="relu",
-                        ),
-                    ),
-                    critic=NetworkConfig(
-                        type="mlp",
-                        arch_cfg=dict(
-                            features=[256, 256, 256],
-                            activation="relu",
-                            output_activation="relu",
-                            use_layer_norm=True,
-                        ),
-                    )
-                ),
-                total_timesteps=20_000_000,
-                learning_starts=1024 * 32,
-                buffer_size=100_000,
-                batch_size=1024,
-                steps_per_env_per_iteration=1,
-                grad_steps_per_iteration=10,
-                buffer_cuda=False,
-            )
-        ),
-        "ms3-rgb-nature": (
-            "ManiSkill3 RGB based SAC training",
-            SACTrainConfig(
-                seed=0,
-                env=EnvConfig(
-                    env_id="PickCube-v1",
-                    num_envs=256,
-                    vectorization_method="gpu",
-                    ignore_terminations=False, # partial resets
-                    env_kwargs=dict(
-                        obs_mode="rgb",
-                        sim_backend="physx_cuda",
-                        reconfiguration_freq=0,
-                    ),
-                    wrappers=[FlattenRGBDObservationWrapper]
-                ),
-                eval_env=EnvConfig(
-                    env_id="PickCube-v1",
-                    num_envs=16,
-                    vectorization_method="gpu",
-                    ignore_terminations=True,
-                    env_kwargs=dict(
-                        obs_mode="rgb",
-                        sim_backend="physx_cuda",
-                        reconfiguration_freq=1,
-                        render_mode="rgb_array",
-                        human_render_camera_configs=dict(shader_pack="default")
-                    ),
-                    wrappers=[FlattenRGBDObservationWrapper],
-                    record_video_path="videos",
-                    record_episode_kwargs=dict(
-                        save_trajectory=False,
-                    )
-                ),
-                network=SACNetworkConfig(
-                    shared_backbone=NetworkConfig(
-                        type="nature_cnn_proj",
                         arch_cfg=dict(activation="relu"),
                     ),
                     actor=NetworkConfig(
