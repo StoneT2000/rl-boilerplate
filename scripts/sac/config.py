@@ -233,9 +233,17 @@ try:
                     )
                 ),
                 network=SACNetworkConfig(
+                    # shared_backbone=NetworkConfig(
+                    #     type="ddpg_cnn",
+                    #     arch_cfg=dict(activation="relu"),
+                    # ),
                     shared_backbone=NetworkConfig(
-                        type="ddpg_cnn",
-                        arch_cfg=dict(activation="relu"),
+                        type="nature_cnn",
+                        arch_cfg=dict(
+                            state_features=[256],
+                            activation="relu",
+                            output_activation="relu",
+                        ),
                     ),
                     actor=NetworkConfig(
                         type="mlp",
