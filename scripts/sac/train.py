@@ -248,7 +248,7 @@ def main(config: SACTrainConfig):
         if config.sac.autotune:
             a_optimizer.zero_grad()
             with torch.no_grad():
-                _, log_pi, _ = agent.actor.get_action_and_value(agent.shared_encoder(data["observations"]))
+                _, log_pi, _ = agent.actor.get_action_and_value(encoded_obs)
             alpha_loss = (-log_alpha.exp() * (log_pi + target_entropy)).mean()
 
             alpha_loss.backward()
@@ -327,7 +327,10 @@ def main(config: SACTrainConfig):
             if not learning_has_started:
                 actions = torch.tensor(envs.action_space.sample(), dtype=torch.float32, device=device)
             else:
-                actions = policy(shared_encoder(obs=obs))
+                if config.network.shared_backbone is None:
+                    actions = policy(obs)
+                else:
+                    actions = policy(shared_encoder(obs=obs)) # for some reason obs=obs is needed here, but not later
 
             # TRY NOT TO MODIFY: execute the game and log data.
             next_obs, rewards, terminations, truncations, infos = envs.step(actions)
