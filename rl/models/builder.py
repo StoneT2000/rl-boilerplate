@@ -10,7 +10,6 @@ from dacite import from_dict
 
 from rl.models.mlp import MLP, MLPConfig
 from rl.models.vision.nature_cnn import NatureCNN, NatureCNNConfig
-from rl.models.vision.nature_cnn_proj import NatureCNNProj, NatureCNNProjConfig
 from rl.models.vision.ddpg_cnn import DDPGCNN, DDPGCNNConfig
 from rl.models.types import NetworkConfig
 
