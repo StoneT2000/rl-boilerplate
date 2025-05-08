@@ -23,7 +23,7 @@ python -m scripts.sac.train ms3-rgb --env.env-id PickCube-v1 --seed 1 \
   \
   --total_timesteps 2_000_000 \
   --steps_per_env_per_iteration 1 \
-  --grad_steps_per_iteration 20 \
+  --grad_steps_per_iteration 10 \
   --sac.policy-frequency 1 \
   --sac.target-network-frequency 2 \
   \
@@ -48,7 +48,7 @@ python -m scripts.sac.train ms3-rgb --env.env-id PickCube-v1 --seed 1 \
   --eval-env.num-envs 16 \
   --eval-env.ignore-terminations \
   \
-  --logger.exp-name "redq-PickCube-v1-rgb-1" \
+  --logger.exp-name "redq-PickCube-v1-rgb-ensemble-1" \
   --logger.wandb \
   --logger.wandb-entity arth-shukla \
   \
@@ -59,7 +59,7 @@ python -m scripts.sac.train ms3-rgb --env.env-id PickCube-v1 --seed 1 \
   \
   --total_timesteps 2_000_000 \
   --steps_per_env_per_iteration 1 \
-  --grad_steps_per_iteration 20 \
+  --grad_steps_per_iteration 10 \
   --sac.policy-frequency 1 \
   --sac.target-network-frequency 2 \
   \
