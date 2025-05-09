@@ -41,11 +41,6 @@ def build_network_from_cfg(config: NetworkConfig, sample_input: torch.Tensor, de
             config.arch_cfg.activation = activation_to_fn(config.arch_cfg.activation) # type: ignore
             config.arch_cfg.output_activation = activation_to_fn(config.arch_cfg.output_activation) # type: ignore
             net = NatureCNN(config, sample_input, device=device)
-        elif config.type == "nature_cnn_proj":
-            config = from_dict(data_class=NatureCNNProjConfig, data=asdict(config))
-            config.arch_cfg.activation = activation_to_fn(config.arch_cfg.activation) # type: ignore
-            config.arch_cfg.output_activation = activation_to_fn(config.arch_cfg.output_activation) # type: ignore
-            net = NatureCNNProj(config, sample_input, device=device)
         elif config.type == "ddpg_cnn":
             config = from_dict(data_class=DDPGCNNConfig, data=asdict(config))
             config.arch_cfg.activation = activation_to_fn(config.arch_cfg.activation) # type: ignore
