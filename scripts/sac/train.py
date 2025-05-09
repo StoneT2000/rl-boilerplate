@@ -407,6 +407,10 @@ def main(config: SACTrainConfig):
             for k, v in cumulative_times.items():
                 logger.add_scalar(f"time/total_{k}", v, global_step)
             logger.add_scalar("time/total_rollout+update_time", cumulative_times["rollout_time"] + cumulative_times["update_time"], global_step)
+            if config.max_time_s is not None:
+                if sum(cumulative_times.values()) > config.max_time_s:
+                    print(f"=== Exceeded {config.max_time_s} seconds, ending training early ===")
+                    break
             
 
 if __name__ == "__main__":

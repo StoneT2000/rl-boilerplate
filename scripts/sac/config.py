@@ -100,7 +100,8 @@ class SACTrainConfig:
     checkpoint: str | None = None
     """path to a pretrained checkpoint file to start training from"""
 
-
+    max_time_s: int | None = None
+    """the maximum time to run the training for. If not specified, the training will run indefinitely"""
 
     cudagraphs: bool = False
     """whether to use cudagraphs"""
