@@ -14,7 +14,6 @@ python -m scripts.sac.train ms3-state --env.env-id PickCube-v1 --seed 1 \
   \
   --logger.exp-name "sac-PickCube-v1-state-1" \
   --logger.wandb \
-  --logger.wandb-entity arth-shukla \
   \
   --env.num-envs 1024 \
   --batch_size 4096 \
@@ -50,7 +49,6 @@ python -m scripts.sac.train ms3-state --env.env-id PickCube-v1 --seed 1 \
   \
   --logger.exp-name "redq-PickCube-v1-state-ensemble-1" \
   --logger.wandb \
-  --logger.wandb-entity arth-shukla \
   \
   --env.num-envs 1024 \
   --batch_size 4096 \
@@ -98,7 +96,6 @@ python -m scripts.sac.train ms3-state --env.env-id PegInsertionSide-v1 --seed 1 
   \
   --logger.exp-name "sac-PegInsertionSide-v1-state-1" \
   --logger.wandb \
-  --logger.wandb-entity arth-shukla \
   \
   --env.num-envs 1024 \
   --batch_size 4096 \
@@ -134,7 +131,6 @@ python -m scripts.sac.train ms3-state --env.env-id PegInsertionSide-v1 --seed 1 
  \
  --logger.exp-name "redq-PegInsertionSide-v1-state-ensemble-1" \
  --logger.wandb \
- --logger.wandb-entity arth-shukla \
  \
  --env.num-envs 1024 \
  --batch_size 4096 \
@@ -182,7 +178,6 @@ python -m scripts.sac.train ms3-state --env.env-id UnitreeG1TransportBox-v1 --se
   \
   --logger.exp-name "sac-UnitreeG1TransportBox-v1-state-1" \
   --logger.wandb \
-  --logger.wandb-entity arth-shukla \
   \
   --env.num-envs 1024 \
   --batch_size 4096 \
@@ -218,7 +213,6 @@ python -m scripts.sac.train ms3-state --env.env-id UnitreeG1TransportBox-v1 --se
   \
   --logger.exp-name "redq-UnitreeG1TransportBox-v1-state-ensemble-1" \
   --logger.wandb \
-  --logger.wandb-entity arth-shukla \
   \
   --env.num-envs 1024 \
   --batch_size 4096 \
