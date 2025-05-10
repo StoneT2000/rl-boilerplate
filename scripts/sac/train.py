@@ -234,7 +234,8 @@ def main(config: SACTrainConfig):
     def update_pol(data):
         actor_optimizer.zero_grad()
         # TODO (stao): detach encoder!
-        encoded_obs = agent.shared_encoder(data["observations"]).detach()
+        with torch.no_grad():
+            encoded_obs = agent.shared_encoder(data["observations"])
         pi, log_pi, _ = agent.actor.get_action_and_value(encoded_obs)
         qf_pi = torch.vmap(batched_qf, (0, None, None, None))(agent.qnet_params.data, encoded_obs, pi, None)
         if config.sac.ensemble_reduction == "min":
@@ -385,7 +386,7 @@ def main(config: SACTrainConfig):
                 alpha.copy_(log_alpha.detach().exp())
 
             # update the target networks
-            if global_step % config.sac.target_network_frequency == 0:
+            if global_update % config.sac.target_network_frequency == 0:
                 with torch.no_grad():
                     for target_param, online_param in zip(agent.target_encoder.parameters(), agent.shared_encoder.parameters()):
                         target_param.lerp_(online_param, config.sac.tau)

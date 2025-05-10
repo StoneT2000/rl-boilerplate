@@ -71,8 +71,6 @@ class SACTrainConfig:
     """number of gradient steps per training iteration"""
     buffer_size: int = 1_000_000
     """the replay memory buffer size"""
-    buffer_device: str = "cuda"
-    """where the replay buffer is stored. Can be 'cpu' or 'cuda' for GPU"""
     batch_size: int = 1024
     """the batch size of sample from the replay memory"""
     learning_starts: int = 1024 * 128
@@ -271,6 +269,7 @@ try:
                 steps_per_env_per_iteration=1,
                 grad_steps_per_iteration=10,
                 buffer_cuda=False,
+                torch_deterministic=False,
             )
         )
     }
