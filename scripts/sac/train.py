@@ -193,7 +193,10 @@ def main(config: SACTrainConfig):
 
     
     # lazy tensor storage is nice, determines the structure of the data based on the first added data point
-    rb = ReplayBuffer(storage=LazyTensorStorage(config.buffer_size, device=buffer_device))
+    # NOTE (arth): when rb is on cpu, rb.sample() and cpu->gpu are both big bottlenecks. pin_memory makes 
+    #       cpu->gpu negligible, prefetch loads batches async to make rb.sample() faster. downside of prefetch
+    #       is it will data which is 1 iter stale, but doesn't seem to affect training noticeably negatively
+    rb = ReplayBuffer(storage=LazyTensorStorage(config.buffer_size, device=buffer_device), batch_size=config.batch_size, prefetch=min(4, config.grad_steps_per_iteration), pin_memory=True)
 
     # NOTE (arth): removed encoder from batched_qf, instead encode once and reuse for each qf
     #       typically batchnorm, dropout, etc is not used for these encoders
