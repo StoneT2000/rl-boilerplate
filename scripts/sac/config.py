@@ -35,10 +35,18 @@ class SACHyperparametersConfig:
     """automatic tuning of the entropy coefficient"""
     ensemble_reduction: str = "min"
     """the reduction to use for ensembling the Q-values when updating the actor. min is the original SAC implementation, mean function is used by REDQ"""
+    min_q: int = 2
+    """num Q for min Q-target"""
+    num_q: int = 2
+    """num Q-functions in ensemble"""
     log_std_max: float = 2.0
     """the maximum value of the log std"""
     log_std_min: float = -5.0
     """the minimum value of the log std"""
+
+    def __post_init__(self):
+        if self.num_q > 2:
+            assert self.ensemble_reduction == "mean", "large Q-ensembles should use mean ensemble reduction"
 
 @dataclass
 class SACTrainConfig:
@@ -63,8 +71,6 @@ class SACTrainConfig:
     """number of gradient steps per training iteration"""
     buffer_size: int = 1_000_000
     """the replay memory buffer size"""
-    buffer_device: str = "cuda"
-    """where the replay buffer is stored. Can be 'cpu' or 'cuda' for GPU"""
     batch_size: int = 1024
     """the batch size of sample from the replay memory"""
     learning_starts: int = 1024 * 128
@@ -92,7 +98,8 @@ class SACTrainConfig:
     checkpoint: str | None = None
     """path to a pretrained checkpoint file to start training from"""
 
-
+    max_time_s: int | None = None
+    """the maximum time to run the training for. If not specified, the training will run indefinitely"""
 
     cudagraphs: bool = False
     """whether to use cudagraphs"""
@@ -102,6 +109,8 @@ class SACTrainConfig:
     """if toggled, `torch.backends.cudnn.deterministic=False`"""
     cuda: bool = True
     """if toggled, cuda will be enabled by default"""
+    buffer_cuda: bool = True
+    """if toggled, the replay buffer will be stored on GPU"""
 
 
     def __post_init__(self):
@@ -223,6 +232,10 @@ try:
                     )
                 ),
                 network=SACNetworkConfig(
+                    # shared_backbone=NetworkConfig(
+                    #     type="ddpg_cnn",
+                    #     arch_cfg=dict(activation="relu"),
+                    # ),
                     shared_backbone=NetworkConfig(
                         type="nature_cnn",
                         arch_cfg=dict(
@@ -255,6 +268,8 @@ try:
                 batch_size=1024,
                 steps_per_env_per_iteration=1,
                 grad_steps_per_iteration=10,
+                buffer_cuda=False,
+                torch_deterministic=False,
             )
         )
     }
