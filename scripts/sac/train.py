@@ -142,11 +142,13 @@ def main(config: SACTrainConfig):
 
     ### Create Environments ###
     envs, env_meta = make_env_from_config(config.env)
-    eval_envs, eval_env_meta = make_env_from_config(config.eval_env)
+    if config.eval_freq > 0:
+        eval_envs, eval_env_meta = make_env_from_config(config.eval_env)
 
     # backfill the max episode steps of the env
     config.env.max_episode_steps = env_meta.max_episode_steps
-    config.eval_env.max_episode_steps = eval_env_meta.max_episode_steps
+    if config.eval_freq > 0:
+        config.eval_env.max_episode_steps = eval_env_meta.max_episode_steps
 
     logger.init(config, orig_config)
     print("Config: ", config)
@@ -196,7 +198,13 @@ def main(config: SACTrainConfig):
     # NOTE (arth): when rb is on cpu, rb.sample() and cpu->gpu are both big bottlenecks. pin_memory makes 
     #       cpu->gpu negligible, prefetch loads batches async to make rb.sample() faster. downside of prefetch
     #       is it will data which is 1 iter stale, but doesn't seem to affect training noticeably negatively
-    rb = ReplayBuffer(storage=LazyTensorStorage(config.buffer_size, device=buffer_device), batch_size=config.batch_size, prefetch=min(4, config.grad_steps_per_iteration), pin_memory=True)
+    rb_cpu_to_gpu = not config.buffer_cuda and config.cuda
+    rb = ReplayBuffer(
+        storage=LazyTensorStorage(config.buffer_size, device=buffer_device),
+        batch_size=config.batch_size,
+        prefetch=min(4, config.grad_steps_per_iteration) if rb_cpu_to_gpu else None,
+        pin_memory=rb_cpu_to_gpu,
+    )
 
     # NOTE (arth): removed encoder from batched_qf, instead encode once and reuse for each qf
     #       typically batchnorm, dropout, etc is not used for these encoders
@@ -280,7 +288,8 @@ def main(config: SACTrainConfig):
 
     # TRY NOT TO MODIFY: start the game
     obs, info = envs.reset(seed=config.seed) # in Gymnasium, seed is given to reset() instead of seed()
-    eval_obs, _ = eval_envs.reset(seed=config.seed)
+    if config.eval_freq > 0:
+        eval_obs, _ = eval_envs.reset(seed=config.seed)
     global_step = 0
     global_update = 0
     learning_has_started = False
