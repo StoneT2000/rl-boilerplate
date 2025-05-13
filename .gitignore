@@ -10,3 +10,6 @@ __pycache__
 # Miscellaneous
 .DS_Store
 .vscode/
+nohup*
+nautilus/
+hidden/

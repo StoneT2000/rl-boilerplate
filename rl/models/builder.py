@@ -10,6 +10,7 @@ from dacite import from_dict
 
 from rl.models.mlp import MLP, MLPConfig
 from rl.models.vision.nature_cnn import NatureCNN, NatureCNNConfig
+from rl.models.vision.ddpg_cnn import DDPGCNN, DDPGCNNConfig
 from rl.models.types import NetworkConfig
 
 ACTIVATIONS = dict(relu=nn.ReLU, gelu=nn.GELU, tanh=nn.Tanh, sigmoid=nn.Sigmoid, log_softmax=nn.LogSoftmax)
@@ -40,6 +41,11 @@ def build_network_from_cfg(config: NetworkConfig, sample_input: torch.Tensor, de
             config.arch_cfg.activation = activation_to_fn(config.arch_cfg.activation) # type: ignore
             config.arch_cfg.output_activation = activation_to_fn(config.arch_cfg.output_activation) # type: ignore
             net = NatureCNN(config, sample_input, device=device)
+        elif config.type == "ddpg_cnn":
+            config = from_dict(data_class=DDPGCNNConfig, data=asdict(config))
+            config.arch_cfg.activation = activation_to_fn(config.arch_cfg.activation) # type: ignore
+            config.arch_cfg.output_activation = activation_to_fn(config.arch_cfg.output_activation) # type: ignore
+            net = DDPGCNN(config, sample_input, device=device)
         else:
             raise ValueError(f"{config.type} is not an available network type.")
     return net, net(sample_input)
