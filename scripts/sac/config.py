@@ -233,10 +233,6 @@ try:
                     )
                 ),
                 network=SACNetworkConfig(
-                    # shared_backbone=NetworkConfig(
-                    #     type="ddpg_cnn",
-                    #     arch_cfg=dict(activation="relu"),
-                    # ),
                     shared_backbone=NetworkConfig(
                         type="nature_cnn",
                         arch_cfg=dict(

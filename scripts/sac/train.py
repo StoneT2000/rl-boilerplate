@@ -160,6 +160,8 @@ def main(config: SACTrainConfig):
 
     ### Create Agent ###
     agent = Agent(config, env_meta.sample_obs, env_meta.sample_acts, envs.single_action_space, device=device)
+    if checkpoint is not None:
+        agent.load_state_dict(checkpoint["agent"])
 
     q_optimizer = optim.Adam(list(agent.qnet.parameters()) + list(agent.shared_encoder.parameters()), lr=config.sac.q_lr, capturable=config.cudagraphs and not config.compile)
     actor_optimizer = optim.Adam(list(agent.actor.parameters()), lr=config.sac.policy_lr, capturable=config.cudagraphs and not config.compile)
@@ -244,7 +246,6 @@ def main(config: SACTrainConfig):
         return TensorDict(qf_loss=qf_loss.detach())
     def update_pol(data):
         actor_optimizer.zero_grad()
-        # TODO (stao): detach encoder!
         with torch.no_grad():
             encoded_obs = agent.shared_encoder(data["observations"])
         pi, log_pi, _ = agent.actor.get_action_and_value(encoded_obs)
@@ -290,6 +291,15 @@ def main(config: SACTrainConfig):
     obs, info = envs.reset(seed=config.seed) # in Gymnasium, seed is given to reset() instead of seed()
     if config.eval_freq > 0:
         eval_obs, _ = eval_envs.reset(seed=config.seed)
+
+    init_transition = TensorDict({
+        "next_observations": obs,
+        "actions": torch.zeros((env_meta.num_envs, *env_meta.sample_acts.shape[1:]), dtype=torch.float32),
+        "rewards": torch.zeros(env_meta.num_envs, dtype=torch.float32),
+        "dones": torch.zeros(env_meta.num_envs, dtype=torch.bool),
+    }, batch_size=config.env.num_envs)
+    rb.extend(init_transition.to(buffer_device))
+
     global_step = 0
     global_update = 0
     learning_has_started = False
@@ -370,12 +380,12 @@ def main(config: SACTrainConfig):
                     logger.add_scalar(f"train/{k}", v[done_mask].float().mean(), global_step)
             
             transition = TensorDict({
-                "observations": obs,
                 "next_observations": real_next_obs,
                 "actions": actions,
                 "rewards": rewards,
                 "dones": dones,
             }, batch_size=config.env.num_envs)
+            
             rb.extend(transition.to(buffer_device))
 
             obs = next_obs
@@ -390,8 +400,11 @@ def main(config: SACTrainConfig):
         learning_has_started = True
         for local_update in range(config.grad_steps_per_iteration):
             global_update += 1
-            data = rb.sample(batch_size=config.batch_size).to(device)
-            metrics = update_main(data)
+            data, info = rb.sample(batch_size=config.batch_size, return_info=True)
+            # fetch observations o_t given the index of o_t+1. This works because the replay buffer stores data in shape (N, ...) for N samples, and appends
+            # B environment frames of data directly each time we add to buffer, so the previous B samples correspond with the previous frame.
+            data["observations"] = rb[info["index"] - env_meta.num_envs]["next_observations"]
+            metrics = update_main(data.to(device))
 
             if global_update % config.sac.policy_frequency == 0:
                 metrics.update(update_pol(data))

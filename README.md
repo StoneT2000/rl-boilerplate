@@ -18,7 +18,11 @@ General practices:
 
 While some repos like to make things as modular as possible, this repo does not do that. The only objects that are intended to be imported from the library in `rl` are environment configurations and a function to create environments from configs, neural network models and a function to build models from configs, and replay buffer designs. Things that are generally standardizable or often are never changed in RL experiments (e.g. neural net architectures). 
 
-Algorithm specific code is in the `scripts/<algo>` folder and is organized on a per-algorithm basis. Typically they each have at least a `scripts/<algo>/config.py` file with some default configs and configs for the algorithm itself.
+Algorithm specific code is in the `scripts/<algo>` folder and is organized on a per-algorithm basis. Typically they each have at least a `scripts/<algo>/config.py` file with some default configs and configs for the algorithm itself. There is also a `scripts/<algo>/README.md` file which contains
+- High-level overview of algorithm
+- Problems with algorithm
+- Tricks/modifications used in the code base (for better performance / faster training etc. )
+- Citation bibtex
 
 ## To Use
 
@@ -88,3 +92,7 @@ If you want to make your own changes/algorithm etc. recommend you read how ppo/t
 `scripts/<algo>` - all files related for running an algorithm
 
 `scripts/<algo>/config.py` - all relevant configs as python files
+
+## Citation
+
+If you use this codebase no need to cite it (you are welcome to cite the github repo), just make sure to cite the algorithm(s) you are using.
