@@ -1,5 +1,6 @@
 from collections import defaultdict
 import copy
+from math import ceil
 import os
 import random
 import time
@@ -160,6 +161,8 @@ def main(config: SACTrainConfig):
 
     ### Create Agent ###
     agent = Agent(config, env_meta.sample_obs, env_meta.sample_acts, envs.single_action_space, device=device)
+    if checkpoint is not None:
+        agent.load_state_dict(checkpoint["agent"])
 
     q_optimizer = optim.Adam(list(agent.qnet.parameters()) + list(agent.shared_encoder.parameters()), lr=config.sac.q_lr, capturable=config.cudagraphs and not config.compile)
     actor_optimizer = optim.Adam(list(agent.actor.parameters()), lr=config.sac.policy_lr, capturable=config.cudagraphs and not config.compile)
@@ -206,6 +209,15 @@ def main(config: SACTrainConfig):
         pin_memory=rb_cpu_to_gpu,
     )
 
+    # NOTE (stao): We are only using this to store observation data. We cannot really prefetch things easily unless we know what the rb replay buffer
+    # is going to sample. We allocate enough storage for all observations plus potential final observations
+    obs_rb = ReplayBuffer(
+        storage=LazyTensorStorage(config.buffer_size + ceil(config.buffer_size / env_meta.max_episode_steps), device=buffer_device),
+        batch_size=config.batch_size,
+        prefetch=0,
+        pin_memory=rb_cpu_to_gpu,
+    )
+
     # NOTE (arth): removed encoder from batched_qf, instead encode once and reuse for each qf
     #       typically batchnorm, dropout, etc is not used for these encoders
     def batched_qf(params, encoded_obs, action, next_q_value=None):
@@ -244,7 +256,6 @@ def main(config: SACTrainConfig):
         return TensorDict(qf_loss=qf_loss.detach())
     def update_pol(data):
         actor_optimizer.zero_grad()
-        # TODO (stao): detach encoder!
         with torch.no_grad():
             encoded_obs = agent.shared_encoder(data["observations"])
         pi, log_pi, _ = agent.actor.get_action_and_value(encoded_obs)
@@ -290,6 +301,9 @@ def main(config: SACTrainConfig):
     obs, info = envs.reset(seed=config.seed) # in Gymnasium, seed is given to reset() instead of seed()
     if config.eval_freq > 0:
         eval_obs, _ = eval_envs.reset(seed=config.seed)
+    
+    obs_rb_idx = obs_rb.extend(TensorDict(obs, batch_size=config.env.num_envs, device=buffer_device))
+
     global_step = 0
     global_update = 0
     learning_has_started = False
@@ -350,9 +364,13 @@ def main(config: SACTrainConfig):
 
             # TRY NOT TO MODIFY: execute the game and log data.
             next_obs, rewards, terminations, truncations, infos = envs.step(actions)
+            
+            next_obs_rb_idx = obs_rb.extend(TensorDict(next_obs, batch_size=config.env.num_envs, device=buffer_device))
+            
             if isinstance(next_obs, dict):
                 next_obs = TensorDict(next_obs, batch_size=config.env.num_envs)
-            real_next_obs = next_obs.clone()
+            # # TODO (stao): do we need to clone really?
+            # real_next_obs = next_obs.clone()
 
             # always bootstrap strategy
             need_final_obs = truncations | terminations # always need final obs when episode ends
@@ -365,19 +383,25 @@ def main(config: SACTrainConfig):
                 done_mask = infos["_final_info"]
                 if isinstance(infos["final_observation"], dict):
                     infos["final_observation"] = TensorDict(infos["final_observation"], batch_size=config.env.num_envs)
-                real_next_obs[need_final_obs] = infos["final_observation"][need_final_obs]
+                # real_next_obs[need_final_obs] = infos["final_observation"][need_final_obs]
                 for k, v in final_info["episode"].items():
                     logger.add_scalar(f"train/{k}", v[done_mask].float().mean(), global_step)
+
+                final_obs_rb_idx = obs_rb.extend(TensorDict(infos["final_observation"][need_final_obs], device=buffer_device, batch_size=need_final_obs.sum()))
+                next_obs_rb_idx[need_final_obs] = final_obs_rb_idx
             
+
             transition = TensorDict({
-                "observations": obs,
-                "next_observations": real_next_obs,
+                "observations_idx": obs_rb_idx,
+                "next_observations_idx": next_obs_rb_idx,
                 "actions": actions,
                 "rewards": rewards,
                 "dones": dones,
             }, batch_size=config.env.num_envs)
+            
             rb.extend(transition.to(buffer_device))
 
+            obs_rb_idx = next_obs_rb_idx
             obs = next_obs
         rollout_time = time.perf_counter() - rollout_time
         cumulative_times["rollout_time"] += rollout_time
@@ -390,8 +414,10 @@ def main(config: SACTrainConfig):
         learning_has_started = True
         for local_update in range(config.grad_steps_per_iteration):
             global_update += 1
-            data = rb.sample(batch_size=config.batch_size).to(device)
-            metrics = update_main(data)
+            data, info = rb.sample(batch_size=config.batch_size, return_info=True)
+            data["observations"] = obs_rb[data["observations_idx"]]
+            data["next_observations"] = obs_rb[data["next_observations_idx"]]
+            metrics = update_main(data.to(device))
 
             if global_update % config.sac.policy_frequency == 0:
                 metrics.update(update_pol(data))

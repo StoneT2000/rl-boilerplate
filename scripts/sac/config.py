@@ -120,8 +120,9 @@ class SACTrainConfig:
         # any kwargs in env.env_kwargs that are not in eval_env.env_kwargs will be added to eval_env.env_kwargs
         for k, v in self.env.env_kwargs.items():
             if k not in self.eval_env.env_kwargs:
+                print(f"Adding {k} to eval_env.env_kwargs from env.env_kwargs")
                 self.eval_env.env_kwargs[k] = v
-        
+                
         self.eval_env.record_episode_kwargs["max_steps_per_video"] = self.num_eval_steps
 
         self.steps_per_iteration = self.steps_per_env_per_iteration * self.env.num_envs
@@ -232,10 +233,6 @@ try:
                     )
                 ),
                 network=SACNetworkConfig(
-                    # shared_backbone=NetworkConfig(
-                    #     type="ddpg_cnn",
-                    #     arch_cfg=dict(activation="relu"),
-                    # ),
                     shared_backbone=NetworkConfig(
                         type="nature_cnn",
                         arch_cfg=dict(
