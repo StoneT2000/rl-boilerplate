@@ -417,8 +417,8 @@ def main(config: SACTrainConfig):
             data, info = rb.sample(batch_size=config.batch_size, return_info=True)
             data["observations"] = obs_rb[data["observations_idx"]]
             data["next_observations"] = obs_rb[data["next_observations_idx"]]
-            metrics = update_main(data.to(device))
-
+            data = data.to(device)
+            metrics = update_main(data)
             if global_update % config.sac.policy_frequency == 0:
                 metrics.update(update_pol(data))
                 alpha.copy_(log_alpha.detach().exp())
