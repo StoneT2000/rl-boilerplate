@@ -1,7 +1,7 @@
 #!/usr/bin/bash
 
 PROJECT_NAME="rl-boilerplate-rgbd"
-ENTITY="arth-shukla"
+ENTITY="stonet2000"
 
 NUM_ENVS=256
 args=(
@@ -10,7 +10,7 @@ args=(
   "--eval-env.num-envs=16"
   "--eval-env.ignore-terminations"
   #
-  "--buffer-size=1_000_000"
+  "--buffer-size=100_000"
   "--batch-size=1024"
   "--learning_starts=$((NUM_ENVS * 32))"
   #
@@ -60,7 +60,6 @@ do
     "${args[@]}" \
     --sac.gamma=0.8 \
     --total_timesteps=2_000_000 \
-    --env.max-episode-steps=$max_episode_steps \
     --num-eval-steps=$max_episode_steps \
     --env.env-id=$env_id \
     --seed=$seed \
