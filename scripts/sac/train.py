@@ -1,5 +1,6 @@
 from collections import defaultdict
 import copy
+from math import ceil
 import os
 import random
 import time
@@ -209,9 +210,9 @@ def main(config: SACTrainConfig):
     )
 
     # NOTE (stao): We are only using this to store observation data. We cannot really prefetch things easily unless we know what the rb replay buffer
-    # is going to sample
+    # is going to sample. We allocate enough storage for all observations plus potential final observations
     obs_rb = ReplayBuffer(
-        storage=LazyTensorStorage(config.buffer_size, device=buffer_device),
+        storage=LazyTensorStorage(config.buffer_size + ceil(config.buffer_size / env_meta.max_episode_steps), device=buffer_device),
         batch_size=config.batch_size,
         prefetch=0,
         pin_memory=rb_cpu_to_gpu,
